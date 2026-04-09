@@ -26,6 +26,25 @@ def list_teams(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/teams/{team_id}")
+def get_team(team_id: str, db: Session = Depends(get_db)):
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    members = db.query(TeamMember).filter(TeamMember.team_id == team_id).all()
+    return {
+        "id": team.id,
+        "name": team.name,
+        "tier": team.tier,
+        "health_score": team.health_score,
+        "incident_count": team.incident_count,
+        "lead_name": team.lead_name,
+        "slack_channel": team.slack_channel,
+        "description": team.description,
+        "members": [{"id": m.id, "name": m.name, "initials": m.initials, "role": m.role, "email": m.email, "on_call": m.on_call} for m in members],
+    }
+
+
 @router.get("/environments")
 def list_environments(db: Session = Depends(get_db)):
     envs = db.query(Environment).all()
@@ -36,3 +55,14 @@ def list_environments(db: Session = Depends(get_db)):
 def get_settings(db: Session = Depends(get_db)):
     settings = db.query(AppSettings).all()
     return {s.key: s.value for s in settings}
+
+
+@router.put("/settings/{key}")
+def update_setting(key: str, payload: dict, db: Session = Depends(get_db)):
+    setting = db.query(AppSettings).filter(AppSettings.key == key).first()
+    if not setting:
+        raise HTTPException(status_code=404, detail="Setting not found")
+    if "value" in payload:
+        setting.value = payload["value"]
+        db.commit()
+    return {"key": key, "value": setting.value}

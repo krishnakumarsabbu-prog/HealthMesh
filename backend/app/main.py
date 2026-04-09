@@ -6,12 +6,19 @@ from app.seed.seeder import is_seeded, seed_all
 
 import app.models  # noqa: F401 - ensure all models are registered
 
-from app.api import dashboard, apps, connectors, health_rules, incidents, dependencies, insights, trends, teams, settings as settings_router
+from app.api import (
+    dashboard, apps, connectors, health_rules, incidents,
+    dependencies, insights, trends, teams, settings as settings_router, admin
+)
 
 import app.connectors.datadog  # noqa: F401
 import app.connectors.prometheus  # noqa: F401
 import app.connectors.splunk  # noqa: F401
 import app.connectors.custom_api  # noqa: F401
+import app.connectors.appdynamics  # noqa: F401
+import app.connectors.logicmonitor  # noqa: F401
+import app.connectors.db_monitor  # noqa: F401
+import app.connectors.synthetic_health  # noqa: F401
 
 
 def create_tables():
@@ -32,6 +39,8 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="HealthMesh enterprise application health intelligence platform API",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -58,6 +67,7 @@ app.include_router(insights.router)
 app.include_router(trends.router)
 app.include_router(teams.router)
 app.include_router(settings_router.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
