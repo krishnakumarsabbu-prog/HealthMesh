@@ -3,7 +3,8 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianG
 import { cn } from "@/lib/utils"
 import { INFRA_PODS } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppInfra, type AppInfraPod } from "@/lib/api/apps"
+import { getAppInfra } from "@/lib/api/apps"
+import { mapAppInfraPod } from "@/lib/mappers"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -22,23 +23,14 @@ const CPU_DATA = Array.from({ length: 30 }, (_, i) => ({
 
 type PodEntry = { name: string; node: string; cpu: number; mem: number; restarts: number; status: "running" | "warning"; age: string }
 
-function apiPodToEntry(p: AppInfraPod): PodEntry {
-  return {
-    name: p.pod_name,
-    node: p.node,
-    cpu: p.cpu_pct,
-    mem: p.mem_pct,
-    restarts: p.restarts,
-    status: p.status === "running" ? "running" : "warning",
-    age: p.age,
-  }
-}
-
 export function TabInfra({ appId }: { appId: string }) {
   const { data: apiPods } = useApi(() => getAppInfra(appId), [appId])
 
   const pods: PodEntry[] = apiPods && apiPods.length > 0
-    ? apiPods.map(apiPodToEntry)
+    ? apiPods.map(p => {
+        const m = mapAppInfraPod(p)
+        return { name: m.podName, node: m.node, cpu: m.cpuPct, mem: m.memPct, restarts: m.restarts, status: (m.status === "running" ? "running" : "warning") as "running" | "warning", age: m.age }
+      })
     : INFRA_PODS
 
   const avgCpu = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.cpu, 0) / pods.length) : 62

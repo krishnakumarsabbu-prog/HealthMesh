@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
-from app.models import Team, TeamMember, Environment, AppSettings
+from app.models import Team, TeamMember, Environment, AppSettings, Application
 
 router = APIRouter(prefix="/api", tags=["teams"])
 
@@ -12,6 +12,7 @@ def list_teams(db: Session = Depends(get_db)):
     result = []
     for t in teams:
         members = db.query(TeamMember).filter(TeamMember.team_id == t.id).all()
+        apps = db.query(Application).filter(Application.team_id == t.id).all()
         result.append({
             "id": t.id,
             "name": t.name,
@@ -21,6 +22,7 @@ def list_teams(db: Session = Depends(get_db)):
             "lead_name": t.lead_name,
             "slack_channel": t.slack_channel,
             "description": t.description,
+            "app_names": [a.name for a in apps],
             "members": [{"id": m.id, "name": m.name, "initials": m.initials, "role": m.role, "email": m.email, "on_call": m.on_call} for m in members],
         })
     return result

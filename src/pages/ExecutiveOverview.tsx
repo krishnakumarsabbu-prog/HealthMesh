@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import { getDashboardOverview } from "@/lib/api/dashboard"
+import { mapDashboardOverview } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 const FALLBACK_INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
@@ -104,7 +105,8 @@ export function ExecutiveOverview() {
   const [refreshing, setRefreshing] = useState(false)
   const [envFilter, setEnvFilter] = useState("All")
 
-  const { data: overview, loading, refetch } = useApi(getDashboardOverview)
+  const { data: rawOverview, loading, refetch } = useApi(getDashboardOverview)
+  const overview = rawOverview ? mapDashboardOverview(rawOverview) : null
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -112,17 +114,17 @@ export function ExecutiveOverview() {
     setTimeout(() => setRefreshing(false), 1400)
   }
 
-  const total = overview?.total_apps ?? 0
-  const healthy = overview?.healthy_apps ?? 0
-  const degraded = overview?.degraded_apps ?? 0
-  const critical = overview?.critical_apps ?? 0
-  const avgScore = overview?.avg_health_score ?? 0
-  const activeIncidents = overview?.active_incidents ?? 0
-  const activeAlerts = overview?.active_alerts ?? 0
-  const uptime = overview?.overall_uptime ?? 99.9
-  const avgLatency = overview?.avg_latency ?? 0
+  const total = overview?.totalApps ?? 0
+  const healthy = overview?.healthyApps ?? 0
+  const degraded = overview?.degradedApps ?? 0
+  const critical = overview?.criticalApps ?? 0
+  const avgScore = overview?.avgHealthScore ?? 0
+  const activeIncidents = overview?.activeIncidents ?? 0
+  const activeAlerts = overview?.activeAlerts ?? 0
+  const uptime = overview?.overallUptime ?? 99.9
+  const avgLatency = overview?.avgLatency ?? 0
 
-  const health24h = overview?.health_24h?.map(h => ({
+  const health24h = overview?.health24h?.map(h => ({
     h: h.hour,
     healthy: h.score,
     incidents: h.incidents,
@@ -134,12 +136,12 @@ export function ExecutiveOverview() {
     latency: 85,
   }))
 
-  const topApps = overview?.top_impacted ?? []
-  const activeIncidentList = overview?.active_incident_list ?? []
-  const envHealth = overview?.environment_health ?? []
-  const connectorHealth = overview?.connector_health ?? []
-  const aiHighlights = overview?.ai_highlights ?? []
-  const heatmapData = overview?.heatmap_data ?? []
+  const topApps = overview?.topImpacted ?? []
+  const activeIncidentList = overview?.activeIncidentList ?? []
+  const envHealth = overview?.environmentHealth ?? []
+  const connectorHealth = overview?.connectorHealth ?? []
+  const aiHighlights = overview?.aiHighlights ?? []
+  const heatmapData = overview?.heatmapData ?? []
 
   const incidentTrend = health24h.length >= 14
     ? health24h.slice(-14).map((h, i) => ({
@@ -162,9 +164,9 @@ export function ExecutiveOverview() {
     { label: "Total Apps", value: total, icon: <Server className="w-4 h-4" />, color: "text-foreground", bg: "" },
     { label: "Healthy", value: healthy, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/15" },
     { label: "Warning", value: degraded, icon: <AlertTriangle className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
-    { label: "Degraded", value: degraded, icon: <AlertCircle className="w-4 h-4" />, color: "text-orange-500", bg: "bg-orange-500/8 border-orange-500/15" },
-    { label: "Critical", value: critical, icon: <XCircle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
+    { label: "Critical", value: critical, icon: <AlertCircle className="w-4 h-4" />, color: "text-orange-500", bg: "bg-orange-500/8 border-orange-500/15" },
     { label: "Incidents", value: activeIncidents, icon: <Flame className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
+    { label: "Alerts", value: activeAlerts, icon: <XCircle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
     { label: "MTTR (7d)", value: -1, display: "32m", icon: <Clock className="w-4 h-4" />, color: "text-foreground", bg: "" },
     { label: "SLA Breaches", value: activeAlerts, icon: <Shield className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
   ]
@@ -228,7 +230,7 @@ export function ExecutiveOverview() {
                   <div className={cn("w-1.5 h-1.5 rounded-full",
                     s.label === "Healthy" ? "bg-emerald-500" :
                     s.label === "Warning" ? "bg-amber-500" :
-                    s.label === "Degraded" ? "bg-orange-500" : "bg-red-500"
+                    s.label === "Critical" ? "bg-orange-500" : "bg-red-500"
                   )} />
                 )}
               </div>
@@ -398,7 +400,7 @@ export function ExecutiveOverview() {
                     <div className="min-w-0">
                       <div className="text-xs font-semibold font-mono text-foreground truncate">{app.name}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[9px] text-muted-foreground">{app.team_id}</span>
+                        <span className="text-[9px] text-muted-foreground">{app.teamId}</span>
                         <span className={cn("text-[9px] font-bold px-1 rounded",
                           app.criticality === "P0" ? "text-red-500 bg-red-500/10" : "text-amber-500 bg-amber-500/10"
                         )}>{app.criticality}</span>
@@ -429,8 +431,8 @@ export function ExecutiveOverview() {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Environment Health</div>
               <div className="space-y-3.5">
                 {envHealth.map(env => {
-                  const total = env.app_count || 1
-                  const healthyCount = total - (env.incident_count || 0)
+                  const appTotal = env.appCount || 1
+                  const healthyCount = appTotal - (env.incidentCount || 0)
                   return (
                     <div key={env.name}>
                       <div className="flex items-center justify-between mb-1.5">
@@ -443,16 +445,16 @@ export function ExecutiveOverview() {
                         </div>
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                           <span className="font-mono text-foreground font-semibold">{env.score.toFixed(1)}%</span>
-                          <span>{env.app_count} apps</span>
+                          <span>{env.appCount} apps</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 h-2 rounded-full overflow-hidden bg-muted">
-                        <div className="h-full bg-emerald-500" style={{ width: `${(healthyCount / total) * 100}%` }} />
-                        {env.incident_count > 0 && <div className="h-full bg-amber-500" style={{ width: `${(env.incident_count / total) * 100}%` }} />}
+                        <div className="h-full bg-emerald-500" style={{ width: `${(healthyCount / appTotal) * 100}%` }} />
+                        {env.incidentCount > 0 && <div className="h-full bg-amber-500" style={{ width: `${(env.incidentCount / appTotal) * 100}%` }} />}
                       </div>
                       <div className="flex gap-3 mt-1">
                         <span className="text-[9px] text-emerald-600 dark:text-emerald-400">{healthyCount} healthy</span>
-                        {env.incident_count > 0 && <span className="text-[9px] text-amber-500">{env.incident_count} issues</span>}
+                        {env.incidentCount > 0 && <span className="text-[9px] text-amber-500">{env.incidentCount} issues</span>}
                       </div>
                     </div>
                   )
@@ -470,7 +472,7 @@ export function ExecutiveOverview() {
                       c.status === "warning" ? "bg-amber-500" : "bg-red-500"
                     )} />
                     <span className="text-xs font-semibold text-foreground flex-1">{c.name}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{c.health_pct.toFixed(0)}%</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{c.healthPct.toFixed(0)}%</span>
                   </div>
                 ))}
               </div>

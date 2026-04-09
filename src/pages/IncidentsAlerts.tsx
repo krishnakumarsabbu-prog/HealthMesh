@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { listIncidents, listAlerts, acknowledgeIncident, resolveIncident, type Incident as ApiIncident, type Alert as ApiAlert } from "@/lib/api/incidents"
+import { listIncidents, listAlerts, acknowledgeIncident, resolveIncident } from "@/lib/api/incidents"
+import { mapIncident, mapAlert } from "@/lib/mappers"
 
 const STATIC_INCIDENTS = [
   {
@@ -128,21 +129,23 @@ type IncidentEntry = {
   timeline: Array<{ time: string; event: string; type: string }>
 }
 
-function apiToIncident(a: ApiIncident): IncidentEntry {
+function apiToIncident(a: Parameters<typeof mapIncident>[0]): IncidentEntry {
+  const m = mapIncident(a)
   return {
-    id: a.id, title: a.title, apps: a.app_name ? [a.app_name] : [], sources: [],
-    severity: a.severity, status: a.status, age: a.duration || a.started_at || "—",
-    owner: "", assignee: a.assignee || "Unassigned", desc: a.ai_cause || "Investigation in progress.",
-    cause: a.ai_cause || "Under investigation", healthImpact: parseInt(a.health_impact) || 0,
-    affectedDeps: a.affected_deps || [],
-    timeline: a.timeline || [],
+    id: m.id, title: m.title, apps: m.apps, sources: m.sources,
+    severity: m.severity, status: m.status, age: m.age,
+    owner: m.owner, assignee: m.assignee, desc: m.description,
+    cause: m.aiCause, healthImpact: m.healthImpact,
+    affectedDeps: m.affectedDeps,
+    timeline: m.timeline,
   }
 }
 
 type AlertEntry = { id: string; rule: string; app: string; severity: string; time: string; source: string }
 
-function apiToAlert(a: ApiAlert): AlertEntry {
-  return { id: a.id, rule: a.rule_name, app: a.app_name, severity: a.severity, time: a.fired_at, source: a.environment }
+function apiToAlert(a: Parameters<typeof mapAlert>[0]): AlertEntry {
+  const m = mapAlert(a)
+  return { id: m.id, rule: m.ruleName, app: m.appName, severity: m.severity, time: m.firedAt, source: m.source }
 }
 
 const STATIC_ALERTS: AlertEntry[] = [

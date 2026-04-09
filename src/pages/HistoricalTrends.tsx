@@ -7,13 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { getTrends, getWeeklyTrends, getTrendSummary, type TrendDataPoint, type SourceTrend, type TeamTrend, type EnvTrend } from "@/lib/api/misc"
+import { getTrends, getWeeklyTrends, getTrendSummary, type SourceTrend, type TeamTrend, type EnvTrend } from "@/lib/api/misc"
+import { mapTrendDataPoint } from "@/lib/mappers"
 
-function apiMonthly(d: TrendDataPoint) {
-  return { month: d.label, availability: d.availability, incidents: d.incidents, latency: d.latency, errorRate: d.error_rate, healthScore: d.health_score, mttr: d.mttr, mttd: d.mttd }
+function apiMonthly(d: Parameters<typeof mapTrendDataPoint>[0]) {
+  const m = mapTrendDataPoint(d)
+  return { month: m.label, availability: m.availability, incidents: m.incidents, latency: m.latency, errorRate: m.errorRate, healthScore: m.healthScore, mttr: m.mttr, mttd: m.mttd }
 }
-function apiWeekly(d: TrendDataPoint) {
-  return { day: d.label, score: d.health_score, latency: d.latency, errors: d.error_rate, incidents: d.incidents, uptime: d.availability }
+function apiWeekly(d: Parameters<typeof mapTrendDataPoint>[0]) {
+  const m = mapTrendDataPoint(d)
+  return { day: m.label, score: m.healthScore, latency: m.latency, errors: m.errorRate, incidents: m.incidents, uptime: m.availability }
 }
 
 const STATIC_MONTHLY_DATA = [

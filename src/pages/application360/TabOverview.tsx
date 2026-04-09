@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { HEALTH_SCORE_7D, HEALTH_RULES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppOverview } from "@/lib/api/apps"
+import { mapAppOverview } from "@/lib/mappers"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -40,27 +41,30 @@ function HealthRing({ score }: { score: number }) {
 }
 
 export function TabOverview({ appId }: { appId: string }) {
-  const { data: overview } = useApi(() => getAppOverview(appId), [appId])
+  const { data: rawOverview } = useApi(() => getAppOverview(appId), [appId])
+  const overview = rawOverview ? mapAppOverview(rawOverview) : null
 
   const app = overview?.app
-  const healthScore = app?.health_score ?? 94
-  const healthHistory = overview?.health_history ?? HEALTH_SCORE_7D
-  const latency24h = overview?.latency_24h ?? []
-  const errorRate24h = overview?.error_rate_24h ?? []
+  const healthScore = app?.healthScore ?? 94
+  const healthHistory = overview?.healthHistory ?? HEALTH_SCORE_7D
+  const latency24h = overview?.latency24h ?? []
+  const errorRate24h = overview?.errorRate24h ?? []
+
+  const avgErrorRate = errorRate24h.length > 0
+    ? (errorRate24h.reduce((s, d) => s + d.rate, 0) / errorRate24h.length)
+    : null
 
   const keyMetrics = [
     { label: "Uptime (30d)", value: app ? `${app.uptime?.toFixed(2) ?? 99.98}%` : "99.98%", icon: <ShieldCheck className="w-4 h-4" />, color: "text-emerald-500", trend: +0.01 },
-    { label: "P99 Latency", value: app ? `${app.latency_p99 ?? 42}ms` : "42ms", icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8 },
-    { label: "Error Rate", value: "0.04%", icon: <AlertTriangle className="w-4 h-4" />, color: "text-emerald-500", trend: -0.02 },
+    { label: "P99 Latency", value: app ? `${app.latencyP99 ?? 42}ms` : "42ms", icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8 },
+    { label: "Error Rate", value: avgErrorRate !== null ? `${(avgErrorRate * 100).toFixed(2)}%` : "0.04%", icon: <AlertTriangle className="w-4 h-4" />, color: avgErrorRate !== null && avgErrorRate * 100 > 1 ? "text-red-500" : "text-emerald-500", trend: -0.02 },
     { label: "Throughput", value: app ? `${((app.rpm ?? 12400) / 1000).toFixed(1)}K rpm` : "12.4K rpm", icon: <Activity className="w-4 h-4" />, color: "text-blue-500", trend: +11 },
   ]
 
-  const latencyScore = app ? Math.min(100, Math.round(100 - (app.latency_p99 / 500) * 100)) : 96
-  const errorScore = 99
+  const latencyScore = app ? Math.min(100, Math.round(100 - (app.latencyP99 / 500) * 100)) : 96
+  const errorScore = avgErrorRate !== null ? Math.max(0, Math.round(100 - avgErrorRate * 100 * 10)) : 99
   const infraScore = 88
   const availabilityScore = app ? Math.round(app.uptime ?? 99) : 99
-
-  const apiHealthRules = overview?.app ? [] : HEALTH_RULES
 
   return (
     <div className="space-y-4">
@@ -136,7 +140,7 @@ export function TabOverview({ appId }: { appId: string }) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Health Rules — Summary</div>
         </div>
         <div className="divide-y divide-border/40">
-          {(apiHealthRules.length > 0 ? apiHealthRules : HEALTH_RULES).map((r, i) => (
+          {HEALTH_RULES.map((r, i) => (
             <div key={i} className="flex items-center gap-4 px-5 py-3">
               <div className={cn("w-2 h-2 rounded-full shrink-0",
                 r.status === "pass" ? "bg-emerald-500" : r.status === "warn" ? "bg-amber-500" : "bg-red-500"

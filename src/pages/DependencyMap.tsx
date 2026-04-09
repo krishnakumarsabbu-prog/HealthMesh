@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import { getDependencyMap, type DependencyNode as ApiNode, type DependencyEdge } from "@/lib/api/misc"
+import { mapDependencyNode, mapDependencyEdge } from "@/lib/mappers"
 
 type NodeStatus = "healthy" | "warning" | "critical" | "degraded"
 type NodeType = "gateway" | "service" | "api" | "ml" | "database" | "cache" | "queue" | "external"
@@ -64,33 +65,31 @@ const STATIC_CONNECTIONS: Connection[] = [
 ]
 
 function apiNodeToService(n: ApiNode): ServiceNode {
-  const latency = parseFloat(n.latency) || 0
-  const errorRate = parseFloat(n.error_rate) || 0
-  const rps = parseFloat(n.rps) || 0
+  const m = mapDependencyNode(n)
   return {
-    id: n.id,
-    name: n.label,
-    type: (n.node_type as NodeType) || "service",
-    status: (n.status as NodeStatus) || "healthy",
-    x: n.x,
-    y: n.y,
-    team: n.team || "Unknown",
+    id: m.id,
+    name: m.label,
+    type: (m.nodeType as NodeType) || "service",
+    status: (m.status as NodeStatus) || "healthy",
+    x: m.x,
+    y: m.y,
+    team: m.team,
     env: "production",
-    latency,
-    errorRate,
-    rps,
-    version: n.version || "—",
-    uptime: n.uptime || "—",
+    latency: m.latency,
+    errorRate: m.errorRate,
+    rps: m.rps,
+    version: m.version,
+    uptime: m.uptime ? `${m.uptime}%` : "—",
   }
 }
 
 function apiEdgeToConnection(e: DependencyEdge): Connection {
-  const latency = parseFloat(e.latency) || 0
+  const m = mapDependencyEdge(e)
   return {
-    from: e.source_id,
-    to: e.target_id,
-    healthy: e.status === "healthy",
-    latency,
+    from: m.sourceId,
+    to: m.targetId,
+    healthy: m.status === "healthy",
+    latency: m.latency,
     rps: 0,
   }
 }
@@ -531,10 +530,10 @@ export function DependencyMap() {
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Total Services", value: stats ? String(stats.total_services) : String(serviceNodes.length) },
-            { label: "Active Connections", value: stats ? String(stats.total_connections) : String(connections.length) },
-            { label: "Degraded Paths", value: stats ? String(stats.degraded_paths) : String(degradedPaths), warn: (stats?.degraded_paths ?? degradedPaths) > 0 },
-            { label: "Critical Nodes", value: stats ? String(stats.critical_nodes) : String(criticalNodes), warn: (stats?.critical_nodes ?? criticalNodes) > 0 },
+            { label: "Total Services", value: stats ? String(stats.totalServices) : String(serviceNodes.length) },
+            { label: "Active Connections", value: stats ? String(stats.totalConnections) : String(connections.length) },
+            { label: "Degraded Paths", value: stats ? String(stats.degradedPaths) : String(degradedPaths), warn: (stats?.degradedPaths ?? degradedPaths) > 0 },
+            { label: "Critical Nodes", value: stats ? String(stats.criticalNodes) : String(criticalNodes), warn: (stats?.criticalNodes ?? criticalNodes) > 0 },
             { label: "Avg Hop Latency", value: `${Math.round(connections.reduce((a, c) => a + c.latency, 0) / Math.max(connections.length, 1))}ms` },
           ].map((s, i) => (
             <motion.div

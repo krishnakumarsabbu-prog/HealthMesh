@@ -3,28 +3,26 @@ import { ArrowDown, ArrowUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DEPENDENCIES } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppDependencies, type AppDependency } from "@/lib/api/apps"
+import { getAppDependencies } from "@/lib/api/apps"
+import { mapAppDependency } from "@/lib/mappers"
 
 type DepEntry = { name: string; direction: string; latency: number; status: "healthy" | "warning" | "critical"; rpm: number; errorPct: number }
-
-function apiDepToEntry(d: AppDependency): DepEntry {
-  const latencyMs = typeof d.latency === "string" ? parseFloat(d.latency) : d.latency
-  const errorRate = typeof d.error_rate === "string" ? parseFloat(d.error_rate) : d.error_rate
-  return {
-    name: d.dep_name,
-    direction: d.dep_type === "upstream" ? "upstream" : "downstream",
-    latency: isNaN(latencyMs) ? 10 : latencyMs,
-    status: d.status as DepEntry["status"],
-    rpm: 1000,
-    errorPct: isNaN(errorRate) ? 0 : errorRate,
-  }
-}
 
 export function TabDependencies({ appId }: { appId: string }) {
   const { data: apiDeps } = useApi(() => getAppDependencies(appId), [appId])
 
   const dependencies: DepEntry[] = apiDeps && apiDeps.length > 0
-    ? apiDeps.map(apiDepToEntry)
+    ? apiDeps.map(d => {
+        const m = mapAppDependency(d)
+        return {
+          name: m.name,
+          direction: m.direction,
+          latency: m.latencyMs,
+          status: (m.status === "healthy" ? "healthy" : m.status === "warning" ? "warning" : "critical") as DepEntry["status"],
+          rpm: m.rpm,
+          errorPct: m.errorRate,
+        }
+      })
     : DEPENDENCIES
 
   const upstream = dependencies.filter(d => d.direction === "upstream")

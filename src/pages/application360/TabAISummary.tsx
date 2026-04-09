@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { AI_FINDINGS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppAiSummary, type AppAiInsight } from "@/lib/api/apps"
+import { mapAppAiInsight } from "@/lib/mappers"
 
 const FINDING_CONFIG = {
   risk: {
@@ -60,11 +61,12 @@ const FINDING_CONFIG = {
 type FindingEntry = { type: string; title: string; body: string; confidence: number }
 
 function apiInsightToFinding(i: AppAiInsight): FindingEntry {
+  const m = mapAppAiInsight(i)
   return {
-    type: i.insight_type || "info",
-    title: i.title,
-    body: i.description,
-    confidence: i.confidence,
+    type: m.type,
+    title: m.title,
+    body: m.description,
+    confidence: m.confidence,
   }
 }
 

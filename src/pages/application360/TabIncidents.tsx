@@ -3,7 +3,8 @@ import { CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Clock, User
 import { cn } from "@/lib/utils"
 import { INCIDENTS } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppIncidents, type AppIncident } from "@/lib/api/apps"
+import { getAppIncidents } from "@/lib/api/apps"
+import { mapAppIncident } from "@/lib/mappers"
 
 const SEV_STYLE: Record<string, string> = {
   critical: "bg-red-500/10 text-red-500",
@@ -13,23 +14,14 @@ const SEV_STYLE: Record<string, string> = {
 
 type IncEntry = { id: string; title: string; severity: string; opened: string; duration: string; status: string; assignee: string }
 
-function apiIncToEntry(i: AppIncident): IncEntry {
-  return {
-    id: i.id,
-    title: i.title,
-    severity: i.severity,
-    opened: i.started_at || "unknown",
-    duration: i.duration || "—",
-    status: i.status,
-    assignee: i.assignee || "unassigned",
-  }
-}
-
 export function TabIncidents({ appId }: { appId: string }) {
   const { data: apiIncidents } = useApi(() => getAppIncidents(appId), [appId])
 
   const incidents: IncEntry[] = apiIncidents && apiIncidents.length > 0
-    ? apiIncidents.map(apiIncToEntry)
+    ? apiIncidents.map(i => {
+        const m = mapAppIncident(i)
+        return { id: m.id, title: m.title, severity: m.severity, opened: m.startedAt || "unknown", duration: m.duration || "—", status: m.status, assignee: m.assignee }
+      })
     : INCIDENTS
 
   const resolved = incidents.filter(i => i.status === "resolved").length

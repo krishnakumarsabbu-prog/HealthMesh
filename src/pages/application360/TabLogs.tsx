@@ -6,7 +6,8 @@ import { LOG_PATTERNS } from "./data"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { useApi } from "@/hooks/useApi"
-import { getAppLogs, type AppLogPattern } from "@/lib/api/apps"
+import { getAppLogs } from "@/lib/api/apps"
+import { mapAppLogPattern } from "@/lib/mappers"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -30,23 +31,15 @@ const HOURLY_ERRORS = Array.from({ length: 24 }, (_, i) => ({
 
 type LogEntry = { level: string; pattern: string; count: number; first: string; last: string; trend: string }
 
-function apiLogToEntry(l: AppLogPattern): LogEntry {
-  return {
-    level: l.level.toUpperCase(),
-    pattern: l.message,
-    count: l.count,
-    first: l.first_seen || "—",
-    last: l.last_seen || "—",
-    trend: "stable",
-  }
-}
-
 export function TabLogs({ appId }: { appId: string }) {
   const [search, setSearch] = useState("")
   const { data: apiLogs } = useApi(() => getAppLogs(appId), [appId])
 
   const logPatterns: LogEntry[] = apiLogs && apiLogs.length > 0
-    ? apiLogs.map(apiLogToEntry)
+    ? apiLogs.map(l => {
+        const m = mapAppLogPattern(l)
+        return { level: m.level, pattern: m.pattern, count: m.count, first: m.firstSeen || "—", last: m.lastSeen || "—", trend: m.trend }
+      })
     : LOG_PATTERNS
 
   const filtered = logPatterns.filter(l =>

@@ -3,26 +3,19 @@ import { cn } from "@/lib/utils"
 import { HEALTH_RULES } from "./data"
 import { CircleCheck as CheckCircle, TriangleAlert as AlertTriangle } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
-import { getAppRules, type AppHealthRule } from "@/lib/api/apps"
+import { getAppRules } from "@/lib/api/apps"
+import { mapAppHealthRule } from "@/lib/mappers"
 
 type RuleEntry = { name: string; condition: string; weight: number; current: string; status: "pass" | "warn" | "fail" }
-
-function apiRuleToEntry(r: AppHealthRule): RuleEntry {
-  const status = r.enabled ? "pass" : "warn"
-  return {
-    name: r.name,
-    condition: `${r.operator} ${r.threshold}`,
-    weight: r.weight ?? 20,
-    current: r.last_triggered || "Never",
-    status,
-  }
-}
 
 export function TabHealthRules({ appId }: { appId: string }) {
   const { data: apiRules } = useApi(() => getAppRules(appId), [appId])
 
   const rules: RuleEntry[] = apiRules && apiRules.length > 0
-    ? apiRules.map(apiRuleToEntry)
+    ? apiRules.map(r => {
+        const m = mapAppHealthRule(r)
+        return { name: m.name, condition: m.condition, weight: m.weight || 20, current: m.lastTriggered || "Never", status: (m.enabled ? "pass" : "warn") as RuleEntry["status"] }
+      })
     : HEALTH_RULES
 
   const passing = rules.filter(r => r.status === "pass").length

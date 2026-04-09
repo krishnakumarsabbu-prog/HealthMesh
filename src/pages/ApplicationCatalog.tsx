@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { listApps, type AppSummary } from "@/lib/api/apps"
+import { listApps } from "@/lib/api/apps"
+import { mapAppSummary } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type AppStatus = "healthy" | "warning" | "critical" | "degraded" | "unknown"
@@ -215,27 +216,28 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
   )
 }
 
-function apiAppToEntry(a: AppSummary): AppEntry {
+function apiAppToEntry(a: Parameters<typeof mapAppSummary>[0]): AppEntry {
+  const m = mapAppSummary(a)
   return {
-    name: a.name,
-    team: a.team_id,
-    env: a.environment,
-    status: a.status as AppStatus,
-    criticality: (a.criticality || "P1") as Criticality,
-    score: a.health_score,
-    uptime: `${a.uptime.toFixed(2)}%`,
-    latency: `${a.latency_p99}ms`,
-    rpm: a.rpm >= 1000 ? `${(a.rpm / 1000).toFixed(1)}K` : String(a.rpm),
-    type: a.app_type || "Service",
-    tags: a.tags || [],
-    incidents: a.incident_count || 0,
-    deps: a.dependency_count || 0,
+    name: m.name,
+    team: m.teamName || m.teamId,
+    env: m.environment,
+    status: m.status as AppStatus,
+    criticality: (m.criticality || "P1") as Criticality,
+    score: m.healthScore,
+    uptime: `${m.uptime.toFixed(2)}%`,
+    latency: `${m.latencyP99}ms`,
+    rpm: m.rpm >= 1000 ? `${(m.rpm / 1000).toFixed(1)}K` : String(m.rpm),
+    type: m.appType || "Service",
+    tags: m.tags,
+    incidents: m.incidentCount,
+    deps: m.dependencyCount,
     connectors: [],
     lastIncident: "N/A",
     lastRefresh: "30s ago",
-    failingChecks: a.status === "critical" ? 5 : a.status === "warning" ? 2 : 0,
-    trend: a.trend || [],
-    description: a.description || "",
+    failingChecks: m.status === "critical" ? 5 : m.status === "warning" ? 2 : 0,
+    trend: m.trend,
+    description: m.description,
   }
 }
 

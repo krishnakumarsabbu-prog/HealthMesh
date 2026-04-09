@@ -122,6 +122,7 @@ export interface Team {
   lead_name: string;
   slack_channel: string;
   description: string;
+  app_names: string[];
   members: Array<{
     id: number;
     name: string;

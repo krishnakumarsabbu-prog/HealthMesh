@@ -4,13 +4,23 @@ import { Button } from "@/components/ui/button"
 import { Settings, RefreshCw, CreditCard as Edit } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { getAppConfiguration } from "@/lib/api/apps"
+import { mapAppConfiguration } from "@/lib/mappers"
+import { cn } from "@/lib/utils"
+
+const FALLBACK_CONNECTORS = [
+  { id: "1", name: "Datadog APM", category: "APM", status: "healthy" as const, abbr: "DD", iconBg: "bg-violet-500/10 text-violet-500" },
+  { id: "2", name: "Prometheus", category: "Metrics", status: "healthy" as const, abbr: "PR", iconBg: "bg-orange-500/10 text-orange-500" },
+  { id: "3", name: "CloudWatch", category: "Infra", status: "healthy" as const, abbr: "CW", iconBg: "bg-amber-500/10 text-amber-500" },
+  { id: "4", name: "PagerDuty", category: "Incidents", status: "healthy" as const, abbr: "PD", iconBg: "bg-emerald-500/10 text-emerald-500" },
+]
 
 export function TabConfiguration({ appId }: { appId: string }) {
-  const { data: config } = useApi(() => getAppConfiguration(appId), [appId])
+  const { data: rawConfig } = useApi(() => getAppConfiguration(appId), [appId])
+  const config = rawConfig ? mapAppConfiguration(rawConfig) : null
 
   const metadata = [
     { label: "Name", value: config?.name ?? appId },
-    { label: "Team", value: config?.owner_name ?? "—" },
+    { label: "Team", value: config?.ownerName ?? "—" },
     { label: "Environment", value: config?.environment ?? "Production" },
     { label: "Type", value: "REST API" },
     { label: "Runtime", value: config?.runtime ?? "Kubernetes" },
@@ -19,14 +29,11 @@ export function TabConfiguration({ appId }: { appId: string }) {
     { label: "Criticality", value: config?.criticality ?? "—" },
   ]
 
-  const connectors = config?.connectors ?? [
-    { id: "1", name: "Datadog APM", category: "APM", status: "active" },
-    { id: "2", name: "Prometheus", category: "Metrics", status: "active" },
-    { id: "3", name: "CloudWatch", category: "Infra", status: "active" },
-    { id: "4", name: "PagerDuty", category: "Incidents", status: "active" },
-  ]
+  const connectors = config?.connectors && config.connectors.length > 0
+    ? config.connectors
+    : FALLBACK_CONNECTORS
 
-  const weights = config?.health_weights ?? {
+  const weights = config?.healthWeights ?? {
     latency: 30,
     errors: 25,
     availability: 25,
@@ -35,10 +42,10 @@ export function TabConfiguration({ appId }: { appId: string }) {
   }
 
   const thresholds = config?.thresholds ?? {
-    latency_warn: 300,
-    latency_crit: 500,
-    error_rate_warn: 0.5,
-    error_rate_crit: 1.0,
+    latencyWarn: 300,
+    latencyCrit: 500,
+    errorRateWarn: 0.5,
+    errorRateCrit: 1.0,
   }
 
   return (
@@ -58,6 +65,13 @@ export function TabConfiguration({ appId }: { appId: string }) {
             </motion.div>
           ))}
         </div>
+        {config?.tags && config.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-4 pt-4 border-t border-border/40">
+            {config.tags.map(tag => (
+              <Badge key={tag} variant="secondary" size="sm">{tag}</Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -71,10 +85,17 @@ export function TabConfiguration({ appId }: { appId: string }) {
           <div className="divide-y divide-border/40">
             {connectors.map((c, i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${c.status === "active" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0", c.iconBg)}>
+                  {c.abbr}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-foreground">{c.name}</div>
-                  <div className="text-[10px] text-muted-foreground">Status: {c.status}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className={cn("w-1.5 h-1.5 rounded-full shrink-0",
+                      c.status === "healthy" ? "bg-emerald-500" : "bg-amber-500"
+                    )} />
+                    <span className="text-[10px] text-muted-foreground capitalize">{c.status}</span>
+                  </div>
                 </div>
                 <Badge variant="secondary" size="sm">{c.category}</Badge>
               </div>
@@ -90,11 +111,11 @@ export function TabConfiguration({ appId }: { appId: string }) {
             {Object.entries(weights).map(([key, weight], i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-mono font-semibold text-foreground capitalize">{key.replace("_", " ")}</div>
+                  <div className="text-xs font-mono font-semibold text-foreground capitalize">{key.replace(/_/g, " ")}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-24 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${(weight as number)}%` }} />
+                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${weight as number}%` }} />
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground w-8 text-right">{weight as number}%</div>
                 </div>
@@ -113,10 +134,10 @@ export function TabConfiguration({ appId }: { appId: string }) {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Latency Warn", value: `${thresholds.latency_warn}ms` },
-            { label: "Latency Critical", value: `${thresholds.latency_crit}ms` },
-            { label: "Error Rate Warn", value: `${thresholds.error_rate_warn}%` },
-            { label: "Error Rate Critical", value: `${thresholds.error_rate_crit}%` },
+            { label: "Latency Warn", value: `${thresholds.latencyWarn}ms` },
+            { label: "Latency Critical", value: `${thresholds.latencyCrit}ms` },
+            { label: "Error Rate Warn", value: `${thresholds.errorRateWarn}%` },
+            { label: "Error Rate Critical", value: `${thresholds.errorRateCrit}%` },
           ].map((s, i) => (
             <div key={i}>
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{s.label}</div>

@@ -3,7 +3,8 @@ import { AreaChart, Area, LineChart, Line, XAxis, YAxis, ResponsiveContainer, To
 import { cn } from "@/lib/utils"
 import { TRANSACTIONS, LATENCY_24H, THROUGHPUT_24H } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppTransactions, getAppOverview, type AppTransaction } from "@/lib/api/apps"
+import { getAppTransactions, getAppOverview } from "@/lib/api/apps"
+import { mapAppOverview, mapAppTransaction } from "@/lib/mappers"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -23,33 +24,31 @@ const METHOD_COLOR: Record<string, string> = {
 
 type TxEntry = { name: string; rpm: number; p99: number; errors: number; apdex: number; status: "healthy" | "warning" | "critical" }
 
-function apiTxToEntry(t: AppTransaction): TxEntry {
-  const method = t.endpoint.split(" ")[0] || "GET"
-  const path = t.endpoint.includes(" ") ? t.endpoint.slice(method.length + 1) : t.endpoint
-  return {
-    name: `${method} ${path}`,
-    rpm: t.rpm,
-    p99: t.latency_p99,
-    errors: t.error_rate,
-    apdex: t.apdex,
-    status: t.status as TxEntry["status"],
-  }
-}
-
 export function TabTransactions({ appId }: { appId: string }) {
   const { data: apiTransactions } = useApi(() => getAppTransactions(appId), [appId])
-  const { data: overview } = useApi(() => getAppOverview(appId), [appId])
+  const { data: rawOverview } = useApi(() => getAppOverview(appId), [appId])
+  const overview = rawOverview ? mapAppOverview(rawOverview) : null
 
   const transactions: TxEntry[] = apiTransactions && apiTransactions.length > 0
-    ? apiTransactions.map(apiTxToEntry)
+    ? apiTransactions.map(t => {
+        const m = mapAppTransaction(t)
+        return {
+          name: m.name.includes(" ") ? m.name : `GET ${m.name}`,
+          rpm: m.rpm,
+          p99: m.latencyP99,
+          errors: m.errorRate,
+          apdex: m.apdex,
+          status: (m.status === "healthy" ? "healthy" : m.status === "warning" ? "warning" : "critical") as TxEntry["status"],
+        }
+      })
     : TRANSACTIONS
 
-  const latencyData = overview?.latency_24h && overview.latency_24h.length > 0
-    ? overview.latency_24h.map(d => ({ time: d.t, p50: d.p50, p95: d.p95, p99: d.p99 }))
+  const latencyData = overview?.latency24h && overview.latency24h.length > 0
+    ? overview.latency24h.map(d => ({ time: d.t, p50: d.p50, p95: d.p95, p99: d.p99 }))
     : LATENCY_24H
 
-  const throughputData = overview?.throughput_24h && overview.throughput_24h.length > 0
-    ? overview.throughput_24h.map(d => ({ time: d.t, rpm: d.rpm }))
+  const throughputData = overview?.throughput24h && overview.throughput24h.length > 0
+    ? overview.throughput24h.map(d => ({ time: d.t, rpm: d.rpm }))
     : THROUGHPUT_24H
 
   return (

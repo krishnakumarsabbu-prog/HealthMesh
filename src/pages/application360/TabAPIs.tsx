@@ -2,7 +2,8 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { ENDPOINTS } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppEndpoints, type AppEndpoint } from "@/lib/api/apps"
+import { getAppEndpoints } from "@/lib/api/apps"
+import { mapAppEndpoint } from "@/lib/mappers"
 
 const METHOD_COLOR: Record<string, string> = {
   GET: "bg-blue-500/10 text-blue-500",
@@ -13,23 +14,22 @@ const METHOD_COLOR: Record<string, string> = {
 
 type EndpointEntry = { path: string; method: string; latency: number; avail: number; errorPct: number; rpm: number; status: "healthy" | "warning" | "critical" }
 
-function apiEndpointToEntry(e: AppEndpoint): EndpointEntry {
-  return {
-    path: e.path,
-    method: e.method,
-    latency: e.latency_p99,
-    avail: 100 - e.error_rate,
-    errorPct: e.error_rate,
-    rpm: e.rpm,
-    status: e.status as EndpointEntry["status"],
-  }
-}
-
 export function TabAPIs({ appId }: { appId: string }) {
   const { data: apiEndpoints } = useApi(() => getAppEndpoints(appId), [appId])
 
   const endpoints: EndpointEntry[] = apiEndpoints && apiEndpoints.length > 0
-    ? apiEndpoints.map(apiEndpointToEntry)
+    ? apiEndpoints.map(e => {
+        const m = mapAppEndpoint(e)
+        return {
+          path: m.path,
+          method: m.method,
+          latency: m.latencyP99,
+          avail: m.availability,
+          errorPct: m.errorRate,
+          rpm: m.rpm,
+          status: (m.status === "healthy" ? "healthy" : m.status === "warning" ? "warning" : "critical") as EndpointEntry["status"],
+        }
+      })
     : ENDPOINTS
 
   const statusCounts = {

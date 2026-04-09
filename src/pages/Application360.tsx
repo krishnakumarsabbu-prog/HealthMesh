@@ -120,7 +120,7 @@ export function Application360() {
                 )}>{app?.criticality}</Badge>
               </div>
               <div className="text-sm text-muted-foreground">
-                {app?.team} Team · {app?.lang} · {app?.version} · {app?.runtime}
+                {app?.team} Team · {app?.lang} · {app?.version}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">

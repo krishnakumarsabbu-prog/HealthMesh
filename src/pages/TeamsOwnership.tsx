@@ -63,7 +63,7 @@ type TeamMemberEntry = { initials: string; name: string; role: string; email: st
 function apiToTeam(a: ApiTeam): TeamEntry {
   const score = a.health_score
   const health: TeamEntry["health"] = score >= 90 ? "healthy" : score >= 75 ? "warning" : score >= 60 ? "degraded" : "critical"
-  return { name: a.name, apps: [], incidents: a.incident_count, health, lead: a.lead_name, tier: a.tier }
+  return { name: a.name, apps: a.app_names || [], incidents: a.incident_count, health, lead: a.lead_name, tier: a.tier }
 }
 
 export function TeamsOwnership() {

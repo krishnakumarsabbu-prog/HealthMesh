@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { LineChart, Line, ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis } from "recharts"
 import { useApi } from "@/hooks/useApi"
-import { listAiInsights, type AiInsight as ApiAiInsight } from "@/lib/api/misc"
+import { listAiInsights } from "@/lib/api/misc"
+import { mapAiInsight } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type InsightEntry = {
@@ -17,12 +18,13 @@ type InsightEntry = {
   signals: string[]; whatChanged: string;
 }
 
-function apiToInsight(a: ApiAiInsight): InsightEntry {
+function apiToInsight(a: Parameters<typeof mapAiInsight>[0]): InsightEntry {
+  const m = mapAiInsight(a)
   return {
-    type: a.insight_type, priority: a.priority, title: a.title, desc: a.description,
-    confidence: a.confidence, impact: a.impact, recommendation: a.recommendation,
-    app: a.app_name, age: a.generated_at, signals: a.signals || [],
-    whatChanged: a.what_changed,
+    type: m.type, priority: m.priority, title: m.title, desc: m.description,
+    confidence: m.confidence, impact: m.impact, recommendation: m.recommendation,
+    app: m.appName, age: m.age, signals: m.signals,
+    whatChanged: m.whatChanged,
   }
 }
 
