@@ -6,10 +6,54 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { CONNECTOR_INSTANCES, CATEGORIES, type ConnectorInstance, type ConnectorCategory } from "./connectorHub/data"
+import { CONNECTOR_INSTANCES as STATIC_INSTANCES, CATEGORIES, type ConnectorInstance, type ConnectorCategory } from "./connectorHub/data"
 import { ConnectorCard } from "./connectorHub/ConnectorCard"
 import { ConnectorDrawer } from "./connectorHub/ConnectorDrawer"
 import { AddConnectorWizard } from "./connectorHub/AddConnectorWizard"
+import { useApi } from "@/hooks/useApi"
+import { listConnectorInstances, type ConnectorInstance as ApiConnectorInstance } from "@/lib/api/connectors"
+
+const ABBR_MAP: Record<string, string> = {
+  "Datadog": "DD", "Prometheus": "PR", "AWS CloudWatch": "CW", "Splunk": "SP",
+  "AppDynamics": "AD", "Grafana": "GF", "Dynatrace": "DT", "PagerDuty": "PD",
+  "Kafka / MQ": "KF", "Database Monitor": "DB", "Synthetic Health": "SY", "LogicMonitor": "LM",
+}
+const ICON_BG_MAP: Record<string, string> = {
+  "Datadog": "bg-violet-500/10 text-violet-500",
+  "Prometheus": "bg-orange-500/10 text-orange-500",
+  "AWS CloudWatch": "bg-amber-500/10 text-amber-500",
+  "Splunk": "bg-green-500/10 text-green-600",
+  "AppDynamics": "bg-blue-500/10 text-blue-500",
+  "Grafana": "bg-rose-500/10 text-rose-500",
+  "Dynatrace": "bg-teal-500/10 text-teal-500",
+  "PagerDuty": "bg-emerald-500/10 text-emerald-500",
+  "Kafka / MQ": "bg-slate-500/10 text-slate-500",
+  "Database Monitor": "bg-cyan-500/10 text-cyan-500",
+  "Synthetic Health": "bg-pink-500/10 text-pink-500",
+  "LogicMonitor": "bg-muted text-muted-foreground",
+}
+
+function apiToConnector(a: ApiConnectorInstance): ConnectorInstance {
+  const templateName = a.template_id
+  return {
+    id: a.id,
+    name: a.name,
+    template: templateName,
+    category: a.category as ConnectorCategory,
+    status: a.status as ConnectorInstance["status"],
+    environment: a.environment,
+    version: a.version,
+    lastSync: a.last_sync,
+    healthScore: a.health_pct,
+    usageCount: 0,
+    appsConnected: a.app_count,
+    capabilities: [],
+    description: "",
+    bgColor: "from-slate-500/15 to-slate-500/5",
+    iconBg: ICON_BG_MAP[templateName] || "bg-muted text-muted-foreground",
+    abbr: ABBR_MAP[templateName] || templateName.slice(0, 2).toUpperCase(),
+  }
+}
 
 const ALL = "All"
 type CategoryFilter = typeof ALL | ConnectorCategory
@@ -22,6 +66,11 @@ export function ConnectorHub() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedConnector, setSelectedConnector] = useState<ConnectorInstance | null>(null)
   const [showAddWizard, setShowAddWizard] = useState(false)
+
+  const { data: apiInstances } = useApi(listConnectorInstances)
+  const CONNECTOR_INSTANCES = apiInstances && apiInstances.length > 0
+    ? apiInstances.map(apiToConnector)
+    : STATIC_INSTANCES
 
   const filtered = CONNECTOR_INSTANCES.filter(c => {
     if (categoryFilter !== ALL && c.category !== categoryFilter) return false

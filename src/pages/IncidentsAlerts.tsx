@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listIncidents, listAlerts, type Incident as ApiIncident, type Alert as ApiAlert } from "@/lib/api/incidents"
 
-const INCIDENTS = [
+const STATIC_INCIDENTS = [
   {
     id: "INC-2847",
     title: "search-api P99 latency exceeding SLO threshold",
@@ -119,7 +121,31 @@ const INCIDENTS = [
   },
 ]
 
-const ALERTS = [
+type IncidentEntry = {
+  id: string; title: string; apps: string[]; sources: string[]; severity: string;
+  status: string; age: string; owner: string; assignee: string; desc: string;
+  cause: string; healthImpact: number; affectedDeps: string[];
+  timeline: Array<{ time: string; event: string; type: string }>
+}
+
+function apiToIncident(a: ApiIncident): IncidentEntry {
+  return {
+    id: a.id, title: a.title, apps: a.app_name ? [a.app_name] : [], sources: [],
+    severity: a.severity, status: a.status, age: a.duration || a.started_at,
+    owner: "", assignee: a.assignee, desc: a.ai_cause,
+    cause: a.ai_cause, healthImpact: parseInt(a.health_impact) || 0,
+    affectedDeps: a.affected_deps || [],
+    timeline: a.timeline || [],
+  }
+}
+
+type AlertEntry = { id: string; rule: string; app: string; severity: string; time: string; source: string }
+
+function apiToAlert(a: ApiAlert): AlertEntry {
+  return { id: a.id, rule: a.rule_name, app: a.app_name, severity: a.severity, time: a.fired_at, source: a.environment }
+}
+
+const STATIC_ALERTS: AlertEntry[] = [
   { id: "ALT-8821", rule: "SLO Burn Rate (1h)", app: "search-api", severity: "critical", time: "2m ago", source: "Datadog" },
   { id: "ALT-8820", rule: "P99 Latency > 500ms", app: "search-api", severity: "critical", time: "14m ago", source: "Prometheus" },
   { id: "ALT-8819", rule: "Error Rate > 1%", app: "auth-service", severity: "warning", time: "1h ago", source: "Datadog" },
@@ -157,8 +183,21 @@ export function IncidentsAlerts() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [search, setSearch] = useState("")
-  const [selectedIncident, setSelectedIncident] = useState<typeof INCIDENTS[0] | null>(null)
+  const [selectedIncident, setSelectedIncident] = useState<IncidentEntry | null>(null)
   const [activeTab, setActiveTab] = useState<"incidents" | "alerts">("incidents")
+
+  const { data: apiIncidents } = useApi(listIncidents)
+  const { data: apiAlerts } = useApi(listAlerts)
+
+  const staticIncidents: IncidentEntry[] = STATIC_INCIDENTS.map(i => ({
+    ...i, sources: i.sources, owner: i.owner,
+  }))
+  const INCIDENTS = apiIncidents && apiIncidents.length > 0
+    ? apiIncidents.map(apiToIncident)
+    : staticIncidents
+  const ALERTS = apiAlerts && apiAlerts.length > 0
+    ? apiAlerts.map(apiToAlert)
+    : STATIC_ALERTS
 
   const filtered = INCIDENTS.filter(inc => {
     const matchSearch = inc.title.toLowerCase().includes(search.toLowerCase()) ||

@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listApps, type AppSummary } from "@/lib/api/apps"
+import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type AppStatus = "healthy" | "warning" | "critical" | "degraded" | "unknown"
 type Criticality = "P0" | "P1" | "P2" | "P3"
@@ -212,6 +215,30 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
   )
 }
 
+function apiAppToEntry(a: AppSummary): AppEntry {
+  return {
+    name: a.name,
+    team: a.team_id,
+    env: a.environment,
+    status: a.status as AppStatus,
+    criticality: (a.criticality || "P1") as Criticality,
+    score: a.health_score,
+    uptime: `${a.uptime.toFixed(2)}%`,
+    latency: `${a.latency_p99}ms`,
+    rpm: a.rpm >= 1000 ? `${(a.rpm / 1000).toFixed(1)}K` : String(a.rpm),
+    type: a.app_type || "Service",
+    tags: a.tags || [],
+    incidents: a.incident_count || 0,
+    deps: a.dependency_count || 0,
+    connectors: [],
+    lastIncident: "N/A",
+    lastRefresh: "30s ago",
+    failingChecks: a.status === "critical" ? 5 : a.status === "warning" ? 2 : 0,
+    trend: a.trend || [],
+    description: a.description || "",
+  }
+}
+
 export function ApplicationCatalog() {
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "grid">("list")
@@ -223,10 +250,16 @@ export function ApplicationCatalog() {
   const [drawerApp, setDrawerApp] = useState<AppEntry | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
-  const teams = useMemo(() => ["all", ...Array.from(new Set(APPS.map(a => a.team))).sort()], [])
+  const { data: apiApps, loading } = useApi(listApps)
+  const APPS_DATA: AppEntry[] = useMemo(() => {
+    if (apiApps && apiApps.length > 0) return apiApps.map(apiAppToEntry)
+    return APPS
+  }, [apiApps])
+
+  const teams = useMemo(() => ["all", ...Array.from(new Set(APPS_DATA.map(a => a.team))).sort()], [APPS_DATA])
 
   const filtered = useMemo(() => {
-    return APPS
+    return APPS_DATA
       .filter(app => {
         const ms = search.toLowerCase()
         const matchSearch = !ms ||

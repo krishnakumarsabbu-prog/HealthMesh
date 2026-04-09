@@ -7,8 +7,25 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { LineChart, Line, ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis } from "recharts"
+import { useApi } from "@/hooks/useApi"
+import { listAiInsights, type AiInsight as ApiAiInsight } from "@/lib/api/misc"
 
-const INSIGHTS = [
+type InsightEntry = {
+  type: string; priority: string; title: string; desc: string; confidence: number;
+  impact: string; recommendation: string; app: string; age: string;
+  signals: string[]; whatChanged: string;
+}
+
+function apiToInsight(a: ApiAiInsight): InsightEntry {
+  return {
+    type: a.insight_type, priority: a.priority, title: a.title, desc: a.description,
+    confidence: a.confidence, impact: a.impact, recommendation: a.recommendation,
+    app: a.app_name, age: a.generated_at, signals: a.signals || [],
+    whatChanged: a.what_changed,
+  }
+}
+
+const STATIC_INSIGHTS: InsightEntry[] = [
   {
     type: "anomaly",
     priority: "high",
@@ -121,6 +138,11 @@ export function AIInsights() {
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [isThinking, setIsThinking] = useState(false)
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null)
+
+  const { data: apiInsights } = useApi(listAiInsights)
+  const INSIGHTS: InsightEntry[] = apiInsights && apiInsights.length > 0
+    ? apiInsights.map(apiToInsight)
+    : STATIC_INSIGHTS
 
   const filtered = INSIGHTS.filter(i => {
     const matchType = typeFilter === "all" || i.type === typeFilter

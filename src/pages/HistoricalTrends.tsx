@@ -6,8 +6,17 @@ import { PageHeader } from "@/components/shared/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { getTrends, getWeeklyTrends, type TrendDataPoint } from "@/lib/api/misc"
 
-const MONTHLY_DATA = [
+function apiMonthly(d: TrendDataPoint) {
+  return { month: d.label, availability: d.availability, incidents: d.incidents, latency: d.latency, errorRate: d.error_rate, healthScore: d.health_score, mttr: d.mttr, mttd: d.mttd }
+}
+function apiWeekly(d: TrendDataPoint) {
+  return { day: d.label, score: d.health_score, latency: d.latency, errors: d.error_rate, incidents: d.incidents, uptime: d.availability }
+}
+
+const STATIC_MONTHLY_DATA = [
   { month: "Oct", availability: 99.91, incidents: 8, latency: 98, errorRate: 0.42, healthScore: 87, mttr: 38, mttd: 14 },
   { month: "Nov", availability: 99.94, incidents: 6, latency: 92, errorRate: 0.31, healthScore: 89, mttr: 32, mttd: 11 },
   { month: "Dec", availability: 99.88, incidents: 11, latency: 105, errorRate: 0.58, healthScore: 84, mttr: 45, mttd: 18 },
@@ -17,7 +26,7 @@ const MONTHLY_DATA = [
   { month: "Apr", availability: 99.98, incidents: 2, latency: 79, errorRate: 0.14, healthScore: 96, mttr: 18, mttd: 6 },
 ]
 
-const WEEKLY_DATA = Array.from({ length: 28 }, (_, i) => ({
+const STATIC_WEEKLY_DATA = Array.from({ length: 28 }, (_, i) => ({
   day: `D${i + 1}`,
   score: parseFloat((88 + Math.sin(i * 0.3) * 6 + Math.random() * 3).toFixed(1)),
   latency: parseFloat((80 + Math.sin(i * 0.4) * 20 + Math.random() * 10).toFixed(1)),
@@ -26,13 +35,6 @@ const WEEKLY_DATA = Array.from({ length: 28 }, (_, i) => ({
   uptime: parseFloat((99.9 + Math.random() * 0.09).toFixed(3)),
 }))
 
-const COMPARE_DATA = MONTHLY_DATA.map(d => ({
-  ...d,
-  prevAvailability: parseFloat((d.availability - 0.04 + Math.random() * 0.06).toFixed(3)),
-  prevLatency: d.latency + Math.floor(Math.random() * 20 - 5),
-  prevIncidents: d.incidents + Math.floor(Math.random() * 4),
-  prevHealthScore: d.healthScore - Math.floor(Math.random() * 5 + 2),
-}))
 
 const SOURCE_TRENDS = [
   { name: "Datadog APM", score: 94, trend: +3.2, incidents: 2, status: "healthy" },
@@ -105,6 +107,23 @@ export function HistoricalTrends() {
   const [compareMode, setCompareMode] = useState(false)
   const [showDateDropdown, setShowDateDropdown] = useState(false)
   const [drillTarget, setDrillTarget] = useState<string | null>(null)
+
+  const { data: apiMonthlyRaw } = useApi(getTrends)
+  const { data: apiWeeklyRaw } = useApi(getWeeklyTrends)
+
+  const MONTHLY_DATA = apiMonthlyRaw && apiMonthlyRaw.length > 0
+    ? apiMonthlyRaw.map(apiMonthly)
+    : STATIC_MONTHLY_DATA
+  const WEEKLY_DATA = apiWeeklyRaw && apiWeeklyRaw.length > 0
+    ? apiWeeklyRaw.map(apiWeekly)
+    : STATIC_WEEKLY_DATA
+  const COMPARE_DATA = MONTHLY_DATA.map(d => ({
+    ...d,
+    prevAvailability: parseFloat(((d.availability || 99.9) - 0.04 + Math.random() * 0.06).toFixed(3)),
+    prevLatency: (d.latency || 90) + Math.floor(Math.random() * 20 - 5),
+    prevIncidents: (d.incidents || 5) + Math.floor(Math.random() * 4),
+    prevHealthScore: (d.healthScore || 90) - Math.floor(Math.random() * 5 + 2),
+  }))
 
   return (
     <div className="min-h-full">

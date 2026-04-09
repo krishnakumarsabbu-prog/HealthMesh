@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listTeams, type Team as ApiTeam } from "@/lib/api/misc"
 
 const TEAM_MEMBERS: Record<string, { initials: string; name: string; role: string; email: string; oncall: boolean }[]> = {
   "Platform": [
@@ -65,10 +67,41 @@ const TIER_LABELS: Record<number, string> = {
   3: "Tier 3 — Supporting",
 }
 
+type TeamEntry = { name: string; apps: string[]; incidents: number; health: "healthy" | "warning" | "critical" | "degraded"; lead: string; tier: number }
+type TeamMemberEntry = { initials: string; name: string; role: string; email: string; oncall: boolean }
+
+function apiToTeam(a: ApiTeam): TeamEntry {
+  const score = a.health_score
+  const health: TeamEntry["health"] = score >= 90 ? "healthy" : score >= 75 ? "warning" : score >= 60 ? "degraded" : "critical"
+  return { name: a.name, apps: [], incidents: a.incident_count, health, lead: a.lead_name, tier: a.tier }
+}
+
 export function TeamsOwnership() {
   const [search, setSearch] = useState("")
-  const [selectedTeam, setSelectedTeam] = useState<typeof TEAMS[0] | null>(null)
+  const [selectedTeam, setSelectedTeam] = useState<TeamEntry | null>(null)
   const [activeTab, setActiveTab] = useState<"members" | "apps" | "oncall">("members")
+
+  const { data: apiTeams } = useApi(listTeams)
+
+  const TEAMS: TeamEntry[] = apiTeams && apiTeams.length > 0
+    ? apiTeams.map(apiToTeam)
+    : [
+        { name: "Platform", apps: ["api-gateway", "auth-service", "config-service", "secret-manager"], incidents: 1, health: "warning", lead: "Alex Chen", tier: 1 },
+        { name: "Payments", apps: ["payments-api", "billing-service", "subscription-mgr", "invoice-engine"], incidents: 0, health: "healthy", lead: "Rachel James", tier: 1 },
+        { name: "Commerce", apps: ["catalog-service", "cart-service", "order-mgr", "pricing-engine", "promotions"], incidents: 0, health: "healthy", lead: "Tom Park", tier: 2 },
+        { name: "Discovery", apps: ["search-api", "recommendation-engine", "indexer"], incidents: 1, health: "critical", lead: "Jake Moore", tier: 2 },
+        { name: "ML", apps: ["feature-store", "model-server", "training-pipeline"], incidents: 1, health: "degraded", lead: "David Rodriguez", tier: 2 },
+        { name: "Logistics", apps: ["shipping-api", "tracking-service", "fulfillment"], incidents: 0, health: "healthy", lead: "Fiona Walsh", tier: 3 },
+        { name: "Risk", apps: ["fraud-detection", "compliance-api", "audit-service"], incidents: 0, health: "healthy", lead: "Miguel Pena", tier: 3 },
+        { name: "Analytics", apps: ["events-pipeline", "reporting-api", "warehouse-sync", "dashboard-api", "export-service", "data-quality", "metrics-store"], incidents: 0, health: "healthy", lead: "Lucy Brown", tier: 3 },
+      ]
+
+  const MEMBERS_BY_TEAM: Record<string, TeamMemberEntry[]> = apiTeams && apiTeams.length > 0
+    ? Object.fromEntries(apiTeams.map(t => [
+        t.name,
+        t.members.map(m => ({ initials: m.initials, name: m.name, role: m.role, email: m.email, oncall: m.on_call }))
+      ]))
+    : Object.fromEntries(Object.entries(TEAM_MEMBERS))
 
   const filtered = TEAMS.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -81,8 +114,8 @@ export function TeamsOwnership() {
     teams: filtered.filter(t => t.tier === tier),
   })).filter(g => g.teams.length > 0)
 
-  const totalMembers = Object.values(TEAM_MEMBERS).reduce((a, m) => a + m.length, 0)
-  const oncallCount = Object.values(TEAM_MEMBERS).reduce((a, m) => a + m.filter(p => p.oncall).length, 0)
+  const totalMembers = Object.values(MEMBERS_BY_TEAM).reduce((a, m) => a + m.length, 0)
+  const oncallCount = Object.values(MEMBERS_BY_TEAM).reduce((a, m) => a + m.filter(p => p.oncall).length, 0)
   const criticalTeams = TEAMS.filter(t => t.health === "critical" || t.health === "degraded").length
 
   return (

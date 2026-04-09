@@ -10,13 +10,9 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-
-const HEALTH_24H = Array.from({ length: 24 }, (_, i) => ({
-  h: `${String(i).padStart(2, "0")}:00`,
-  healthy: Math.round(88 + Math.sin(i * 0.4) * 5 + Math.random() * 4),
-  incidents: Math.max(0, Math.round(3 + Math.cos(i * 0.8) * 2 + Math.random() * 1.5)),
-  latency: Math.round(85 + Math.sin(i * 0.35) * 30 + Math.random() * 15),
-}))
+import { useApi } from "@/hooks/useApi"
+import { getDashboardOverview } from "@/lib/api/dashboard"
+import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 const INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
   d: `D${i + 1}`,
@@ -30,48 +26,6 @@ const SPARKLINES: Record<string, number[]> = {
   incidents: [8, 6, 9, 5, 7, 4, 6, 3, 5, 4, 3, 3],
   uptime: [99.91, 99.94, 99.88, 99.96, 99.97, 99.95, 99.98, 99.99, 99.97, 99.98, 99.97, 99.98],
 }
-
-const TOP_APPS = [
-  { name: "payments-api", team: "Payments", status: "healthy" as const, score: 98, latency: "42ms", rpm: "12.4K", incidents: 0, criticality: "P0" },
-  { name: "customer-auth-service", team: "Platform", status: "warning" as const, score: 72, latency: "87ms", rpm: "34.1K", incidents: 1, criticality: "P0" },
-  { name: "order-processing-gateway", team: "Commerce", status: "healthy" as const, score: 95, latency: "55ms", rpm: "8.7K", incidents: 0, criticality: "P0" },
-  { name: "search-api", team: "Discovery", status: "critical" as const, score: 31, latency: "2140ms", rpm: "6.3K", incidents: 3, criticality: "P1" },
-  { name: "recommendation-engine", team: "ML", status: "degraded" as const, score: 58, latency: "234ms", rpm: "2.1K", incidents: 2, criticality: "P1" },
-  { name: "notification-engine", team: "Platform", status: "healthy" as const, score: 97, latency: "18ms", rpm: "5.6K", incidents: 0, criticality: "P1" },
-]
-
-const ACTIVE_INCIDENTS = [
-  { id: "INC-2847", title: "search-api P99 latency spike", severity: "critical" as const, age: "14m", team: "Discovery" },
-  { id: "INC-2846", title: "auth-service elevated error rate", severity: "warning" as const, age: "1h 22m", team: "Platform" },
-  { id: "INC-2844", title: "recommendation-engine degraded", severity: "degraded" as const, age: "3h 5m", team: "ML" },
-]
-
-const ENVIRONMENT_HEALTH = [
-  { env: "Production", total: 124, healthy: 119, warning: 3, critical: 2, uptime: "99.97%" },
-  { env: "Staging", total: 68, healthy: 64, warning: 3, critical: 1, uptime: "99.81%" },
-  { env: "Development", total: 55, healthy: 49, warning: 5, critical: 1, uptime: "98.64%" },
-]
-
-const CONNECTOR_HEALTH = [
-  { name: "Datadog", status: "healthy", signals: 4821 },
-  { name: "AWS CloudWatch", status: "healthy", signals: 12841 },
-  { name: "Prometheus", status: "warning", signals: 3241 },
-  { name: "PagerDuty", status: "healthy", signals: 284 },
-]
-
-const AI_HIGHLIGHTS = [
-  { type: "anomaly", icon: "🔴", title: "search-api: 3.2× traffic surge EU region", confidence: 94, age: "6m" },
-  { type: "prediction", icon: "🟡", title: "auth-service memory exhaustion in ~4h", confidence: 87, age: "12m" },
-  { type: "correlation", icon: "🔵", title: "recommendation latency ↔ db-replica-2 GC pauses", confidence: 91, age: "34m" },
-]
-
-const HEATMAP_DATA = [
-  { region: "US-East", prod: "healthy", stage: "healthy", dev: "warning" },
-  { region: "US-West", prod: "healthy", stage: "warning", dev: "healthy" },
-  { region: "EU-West", prod: "warning", stage: "healthy", dev: "healthy" },
-  { region: "AP-South", prod: "critical", stage: "healthy", dev: "degraded" },
-  { region: "AP-North", prod: "healthy", stage: "healthy", dev: "healthy" },
-]
 
 function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
   const [display, setDisplay] = useState(0)
@@ -146,20 +100,74 @@ const TOOLTIP_STYLE = {
 
 const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } }
 
+function getScoreColor(status: string) {
+  if (status === "critical") return "#ef4444"
+  if (status === "warning") return "#f59e0b"
+  return "#10b981"
+}
+
 export function ExecutiveOverview() {
   const [refreshing, setRefreshing] = useState(false)
   const [envFilter, setEnvFilter] = useState("All")
 
+  const { data: overview, loading, refetch } = useApi(getDashboardOverview)
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    refetch()
+    setTimeout(() => setRefreshing(false), 1400)
+  }
+
+  const total = overview?.total_apps ?? 0
+  const healthy = overview?.healthy_apps ?? 0
+  const degraded = overview?.degraded_apps ?? 0
+  const critical = overview?.critical_apps ?? 0
+  const avgScore = overview?.avg_health_score ?? 0
+  const activeIncidents = overview?.active_incidents ?? 0
+  const activeAlerts = overview?.active_alerts ?? 0
+  const uptime = overview?.overall_uptime ?? 99.9
+  const avgLatency = overview?.avg_latency ?? 0
+
+  const health24h = overview?.health_24h?.map(h => ({
+    h: h.hour,
+    healthy: h.score,
+    incidents: h.incidents,
+    latency: 85,
+  })) ?? Array.from({ length: 24 }, (_, i) => ({
+    h: `${String(i).padStart(2, "0")}:00`,
+    healthy: 91,
+    incidents: 0,
+    latency: 85,
+  }))
+
+  const topApps = overview?.top_impacted ?? []
+  const activeIncidentList = overview?.active_incident_list ?? []
+  const envHealth = overview?.environment_health ?? []
+  const connectorHealth = overview?.connector_health ?? []
+  const aiHighlights = overview?.ai_highlights ?? []
+  const heatmapData = overview?.heatmap_data ?? []
+
   const SUMMARY = [
-    { label: "Total Apps", value: 247, icon: <Server className="w-4 h-4" />, color: "text-foreground", bg: "" },
-    { label: "Healthy", value: 229, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/15" },
-    { label: "Warning", value: 11, icon: <AlertTriangle className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
-    { label: "Degraded", value: 4, icon: <AlertCircle className="w-4 h-4" />, color: "text-orange-500", bg: "bg-orange-500/8 border-orange-500/15" },
-    { label: "Critical", value: 3, icon: <XCircle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
-    { label: "Incidents", value: 3, icon: <Flame className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
-    { label: "MTTR (7d)", value: -1, display: "1h 24m", icon: <Clock className="w-4 h-4" />, color: "text-foreground", bg: "" },
-    { label: "SLA Breaches", value: 1, icon: <Shield className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
+    { label: "Total Apps", value: total, icon: <Server className="w-4 h-4" />, color: "text-foreground", bg: "" },
+    { label: "Healthy", value: healthy, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/15" },
+    { label: "Warning", value: degraded, icon: <AlertTriangle className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
+    { label: "Degraded", value: degraded, icon: <AlertCircle className="w-4 h-4" />, color: "text-orange-500", bg: "bg-orange-500/8 border-orange-500/15" },
+    { label: "Critical", value: critical, icon: <XCircle className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
+    { label: "Incidents", value: activeIncidents, icon: <Flame className="w-4 h-4" />, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15" },
+    { label: "MTTR (7d)", value: -1, display: "32m", icon: <Clock className="w-4 h-4" />, color: "text-foreground", bg: "" },
+    { label: "SLA Breaches", value: activeAlerts, icon: <Shield className="w-4 h-4" />, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15" },
   ]
+
+  if (loading) {
+    return (
+      <div className="min-h-full bg-background">
+        <PageHeader title="Executive Overview" description="Unified real-time health intelligence" />
+        <div className="px-6 pb-8 space-y-5">
+          <LoadingShimmer rows={3} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-full bg-background">
@@ -182,7 +190,7 @@ export function ExecutiveOverview() {
                   : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
               )}>{e}</button>
             ))}
-            <Button variant="outline" size="sm" onClick={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 1400) }} className="gap-1.5 h-8">
+            <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-1.5 h-8">
               <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
               Refresh
             </Button>
@@ -238,7 +246,7 @@ export function ExecutiveOverview() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={150}>
-              <AreaChart data={HEALTH_24H} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
+              <AreaChart data={health24h} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
                 <defs>
                   <linearGradient id="hg1" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -248,7 +256,7 @@ export function ExecutiveOverview() {
                 <XAxis dataKey="h" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={5} />
                 <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} domain={[75, 100]} />
                 <Tooltip {...TOOLTIP_STYLE} />
-                <Area type="monotone" dataKey="healthy" stroke="#10b981" strokeWidth={2} fill="url(#hg1)" name="Healthy %" />
+                <Area type="monotone" dataKey="healthy" stroke="#10b981" strokeWidth={2} fill="url(#hg1)" name="Health Score" />
               </AreaChart>
             </ResponsiveContainer>
           </motion.div>
@@ -256,12 +264,12 @@ export function ExecutiveOverview() {
           {/* Overall health score */}
           <motion.div {...fadeUp} transition={{ delay: 0.2, duration: 0.35 }} className="lg:col-span-3 premium-card p-5 flex flex-col items-center justify-center gap-4">
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-center">Overall Health Score</div>
-            <HealthRing score={91} />
+            <HealthRing score={Math.round(avgScore)} />
             <div className="w-full space-y-2.5">
               {[
-                { label: "Availability", value: 99.97, color: "bg-emerald-500" },
-                { label: "Performance", value: 88, color: "bg-emerald-500" },
-                { label: "Reliability", value: 86, color: "bg-amber-500" },
+                { label: "Availability", value: uptime, color: "bg-emerald-500" },
+                { label: "Performance", value: Math.min(100, Math.round(100 - (avgLatency / 10))), color: "bg-emerald-500" },
+                { label: "Reliability", value: Math.round(avgScore), color: avgScore >= 90 ? "bg-emerald-500" : "bg-amber-500" },
               ].map(m => (
                 <div key={m.label} className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground w-20 shrink-0">{m.label}</span>
@@ -283,10 +291,10 @@ export function ExecutiveOverview() {
           <motion.div {...fadeUp} transition={{ delay: 0.25, duration: 0.35 }} className="lg:col-span-4 premium-card p-5 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Incidents</div>
-              <Badge variant="critical" size="sm">{ACTIVE_INCIDENTS.length} Open</Badge>
+              <Badge variant="critical" size="sm">{activeIncidentList.length} Open</Badge>
             </div>
             <div className="space-y-2.5 flex-1">
-              {ACTIVE_INCIDENTS.map((inc) => (
+              {activeIncidentList.map((inc) => (
                 <div key={inc.id} className="flex items-start gap-3 p-3 rounded-xl border border-border/40 hover:border-border hover:bg-muted/30 cursor-pointer transition-all duration-150 group">
                   <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0",
                     inc.severity === "critical" ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)] animate-pulse" :
@@ -298,7 +306,7 @@ export function ExecutiveOverview() {
                       <span className="text-[10px] font-mono text-muted-foreground/70">{inc.id}</span>
                       <span className="text-[10px] text-muted-foreground">·</span>
                       <Clock className="w-2.5 h-2.5 text-muted-foreground/70" />
-                      <span className="text-[10px] text-muted-foreground/70">{inc.age}</span>
+                      <span className="text-[10px] text-muted-foreground/70">{inc.duration}</span>
                     </div>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary shrink-0 mt-0.5 transition-colors" />
@@ -314,10 +322,10 @@ export function ExecutiveOverview() {
         {/* ── KPI Trend Cards with Sparklines ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Health Score", value: 91.4, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: SPARKLINES.score, decimals: 1 },
-            { label: "Avg Response Time", value: 87, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: SPARKLINES.latency },
-            { label: "Open Incidents", value: 3, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: SPARKLINES.incidents },
-            { label: "System Uptime", value: 99.97, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: SPARKLINES.uptime, decimals: 2 },
+            { label: "Health Score", value: avgScore, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: SPARKLINES.score, decimals: 1 },
+            { label: "Avg Response Time", value: avgLatency, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: SPARKLINES.latency },
+            { label: "Open Incidents", value: activeIncidents, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: SPARKLINES.incidents },
+            { label: "System Uptime", value: uptime, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: SPARKLINES.uptime, decimals: 2 },
           ].map((card, i) => (
             <motion.div key={card.label}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -360,8 +368,8 @@ export function ExecutiveOverview() {
               ))}
             </div>
             <div className="divide-y divide-border/30">
-              {TOP_APPS.map((app, i) => (
-                <motion.div key={app.name}
+              {topApps.map((app, i) => (
+                <motion.div key={app.id}
                   initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.35 + i * 0.05 }}
                   className="grid grid-cols-[2fr_1fr_80px_72px_60px] gap-3 items-center px-5 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
@@ -369,41 +377,37 @@ export function ExecutiveOverview() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
                       app.status === "critical" ? "bg-red-500/10" :
-                      app.status === "warning" ? "bg-amber-500/10" :
-                      app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+                      app.status === "warning" ? "bg-amber-500/10" : "bg-primary/10"
                     )}>
                       <Server className={cn("w-3.5 h-3.5",
                         app.status === "critical" ? "text-red-500" :
-                        app.status === "warning" ? "text-amber-500" :
-                        app.status === "degraded" ? "text-orange-500" : "text-primary"
+                        app.status === "warning" ? "text-amber-500" : "text-primary"
                       )} />
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold font-mono text-foreground truncate">{app.name}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[9px] text-muted-foreground">{app.team}</span>
+                        <span className="text-[9px] text-muted-foreground">{app.team_id}</span>
                         <span className={cn("text-[9px] font-bold px-1 rounded",
                           app.criticality === "P0" ? "text-red-500 bg-red-500/10" : "text-amber-500 bg-amber-500/10"
                         )}>{app.criticality}</span>
                       </div>
                     </div>
                   </div>
-                  <StatusBadge status={app.status} size="sm" />
+                  <StatusBadge status={app.status as "healthy" | "warning" | "critical" | "degraded"} size="sm" />
                   <div className="flex items-center gap-1.5">
                     <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-[40px]">
                       <div className={cn("h-full rounded-full",
                         app.score >= 80 ? "bg-emerald-500" : app.score >= 60 ? "bg-amber-500" : "bg-red-500"
                       )} style={{ width: `${app.score}%` }} />
                     </div>
-                    <span className="text-xs font-mono font-semibold text-foreground">{app.score}</span>
+                    <span className="text-xs font-mono font-semibold text-foreground">{Math.round(app.score)}</span>
                   </div>
                   <span className={cn("text-xs font-mono font-semibold",
-                    parseInt(app.latency) > 500 ? "text-red-500" :
-                    parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
-                  )}>{app.latency}</span>
-                  <span className={cn("text-xs font-semibold",
-                    app.incidents > 0 ? "text-red-500" : "text-muted-foreground"
-                  )}>{app.incidents > 0 ? app.incidents : "—"}</span>
+                    app.latency > 500 ? "text-red-500" :
+                    app.latency > 200 ? "text-amber-500" : "text-foreground"
+                  )}>{app.latency}ms</span>
+                  <span className="text-xs font-semibold text-muted-foreground">—</span>
                 </motion.div>
               ))}
             </div>
@@ -413,47 +417,49 @@ export function ExecutiveOverview() {
             <motion.div {...fadeUp} transition={{ delay: 0.32, duration: 0.35 }} className="premium-card p-5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Environment Health</div>
               <div className="space-y-3.5">
-                {ENVIRONMENT_HEALTH.map(env => (
-                  <div key={env.env}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("w-1.5 h-1.5 rounded-full",
-                          (env.healthy / env.total) >= 0.95 ? "bg-emerald-500" :
-                          (env.healthy / env.total) >= 0.85 ? "bg-amber-500" : "bg-red-500"
-                        )} />
-                        <span className="text-xs font-semibold text-foreground">{env.env}</span>
+                {envHealth.map(env => {
+                  const total = env.app_count || 1
+                  const healthyCount = total - (env.incident_count || 0)
+                  return (
+                    <div key={env.name}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-1.5 h-1.5 rounded-full",
+                            env.status === "healthy" ? "bg-emerald-500" :
+                            env.status === "degraded" ? "bg-amber-500" : "bg-red-500"
+                          )} />
+                          <span className="text-xs font-semibold text-foreground">{env.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <span className="font-mono text-foreground font-semibold">{env.score.toFixed(1)}%</span>
+                          <span>{env.app_count} apps</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="font-mono text-foreground font-semibold">{env.uptime}</span>
-                        <span>{env.total} apps</span>
+                      <div className="flex items-center gap-0.5 h-2 rounded-full overflow-hidden bg-muted">
+                        <div className="h-full bg-emerald-500" style={{ width: `${(healthyCount / total) * 100}%` }} />
+                        {env.incident_count > 0 && <div className="h-full bg-amber-500" style={{ width: `${(env.incident_count / total) * 100}%` }} />}
+                      </div>
+                      <div className="flex gap-3 mt-1">
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400">{healthyCount} healthy</span>
+                        {env.incident_count > 0 && <span className="text-[9px] text-amber-500">{env.incident_count} issues</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 h-2 rounded-full overflow-hidden bg-muted">
-                      <div className="h-full bg-emerald-500" style={{ width: `${(env.healthy / env.total) * 100}%` }} />
-                      {env.warning > 0 && <div className="h-full bg-amber-500" style={{ width: `${(env.warning / env.total) * 100}%` }} />}
-                      {env.critical > 0 && <div className="h-full bg-red-500" style={{ width: `${(env.critical / env.total) * 100}%` }} />}
-                    </div>
-                    <div className="flex gap-3 mt-1">
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400">{env.healthy} healthy</span>
-                      {env.warning > 0 && <span className="text-[9px] text-amber-500">{env.warning} warning</span>}
-                      {env.critical > 0 && <span className="text-[9px] text-red-500">{env.critical} critical</span>}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </motion.div>
 
             <motion.div {...fadeUp} transition={{ delay: 0.36, duration: 0.35 }} className="premium-card p-5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Source Health</div>
               <div className="space-y-2">
-                {CONNECTOR_HEALTH.map(c => (
+                {connectorHealth.map(c => (
                   <div key={c.name} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/30 transition-colors">
                     <div className={cn("w-2 h-2 rounded-full shrink-0",
                       c.status === "healthy" ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" :
                       c.status === "warning" ? "bg-amber-500" : "bg-red-500"
                     )} />
                     <span className="text-xs font-semibold text-foreground flex-1">{c.name}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{c.signals.toLocaleString()}/h</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{c.health_pct.toFixed(0)}%</span>
                   </div>
                 ))}
               </div>
@@ -488,21 +494,23 @@ export function ExecutiveOverview() {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Attention Needed</div>
             </div>
             <div className="space-y-2.5">
-              {AI_HIGHLIGHTS.map((h, i) => (
-                <motion.div key={i}
+              {aiHighlights.map((h, i) => (
+                <motion.div key={h.id}
                   initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.45 + i * 0.08 }}
                   className="flex items-start gap-2.5 p-3 rounded-xl border border-border/50 hover:border-primary/20 hover:bg-primary/3 cursor-pointer transition-all duration-200 group"
                 >
-                  <span className="text-base shrink-0 mt-0.5">{h.icon}</span>
+                  <div className={cn("w-2 h-2 rounded-full mt-1 shrink-0",
+                    h.priority === "high" ? "bg-red-500" : "bg-amber-500"
+                  )} />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-foreground leading-snug">{h.title}</div>
                     <div className="flex items-center gap-1.5 mt-1">
                       <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${h.confidence}%` }} />
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.round(h.confidence * 100)}%` }} />
                       </div>
-                      <span className="text-[9px] font-semibold text-primary">{h.confidence}%</span>
-                      <span className="text-[9px] text-muted-foreground">{h.age}</span>
+                      <span className="text-[9px] font-semibold text-primary">{Math.round(h.confidence * 100)}%</span>
+                      <span className="text-[9px] text-muted-foreground">{h.type}</span>
                     </div>
                   </div>
                   <ArrowUpRight className="w-3 h-3 text-muted-foreground/40 group-hover:text-primary shrink-0 mt-0.5 transition-colors" />
@@ -520,29 +528,35 @@ export function ExecutiveOverview() {
                   <span key={e} className="text-[9px] font-semibold text-muted-foreground uppercase text-center">{e}</span>
                 ))}
               </div>
-              {HEATMAP_DATA.map(row => (
-                <div key={row.region} className="grid grid-cols-[1fr_60px_60px_60px] gap-2 items-center">
-                  <span className="text-xs text-foreground font-medium">{row.region}</span>
-                  {[row.prod, row.stage, row.dev].map((s, j) => (
-                    <div key={j} className={cn(
-                      "rounded-lg h-6 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider",
-                      s === "healthy" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :
-                      s === "warning" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" :
-                      s === "critical" ? "bg-red-500/15 text-red-600 dark:text-red-400" :
-                      "bg-orange-500/15 text-orange-600 dark:text-orange-400"
-                    )}>
-                      {s === "healthy" ? "OK" : s === "critical" ? "CRIT" : s === "warning" ? "WARN" : "DEG"}
-                    </div>
-                  ))}
-                </div>
-              ))}
+              {heatmapData.map(row => {
+                const getStatus = (score: number) => score >= 95 ? "healthy" : score >= 88 ? "warning" : "critical"
+                const getLabel = (score: number) => score >= 95 ? "OK" : score >= 88 ? "WARN" : "CRIT"
+                const cells = [row.production, row.staging, row.development]
+                return (
+                  <div key={row.region} className="grid grid-cols-[1fr_60px_60px_60px] gap-2 items-center">
+                    <span className="text-xs text-foreground font-medium">{row.region}</span>
+                    {cells.map((score, j) => {
+                      const status = getStatus(score)
+                      return (
+                        <div key={j} className={cn(
+                          "rounded-lg h-6 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider",
+                          status === "healthy" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :
+                          status === "warning" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" :
+                          "bg-red-500/15 text-red-600 dark:text-red-400"
+                        )}>
+                          {getLabel(score)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
             <div className="flex items-center gap-3 mt-3 flex-wrap">
-              {[["OK", "emerald"], ["WARN", "amber"], ["DEG", "orange"], ["CRIT", "red"]].map(([l, c]) => (
+              {[["OK", "emerald"], ["WARN", "amber"], ["CRIT", "red"]].map(([l, c]) => (
                 <span key={l} className="flex items-center gap-1 text-[9px] text-muted-foreground">
                   <span className={cn("w-2 h-2 rounded-sm",
-                    c === "emerald" ? "bg-emerald-500/40" : c === "amber" ? "bg-amber-500/40" :
-                    c === "orange" ? "bg-orange-500/40" : "bg-red-500/40"
+                    c === "emerald" ? "bg-emerald-500/40" : c === "amber" ? "bg-amber-500/40" : "bg-red-500/40"
                   )} />
                   {l}
                 </span>
