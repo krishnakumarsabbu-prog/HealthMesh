@@ -77,11 +77,11 @@ const INSIGHTS = [
 ]
 
 const TYPE_META = {
-  anomaly: { label: "Anomaly", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", icon: <AlertTriangle className="w-4 h-4" /> },
-  prediction: { label: "Prediction", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", icon: <TrendingUp className="w-4 h-4" /> },
-  correlation: { label: "Correlation", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", icon: <GitBranch className="w-4 h-4" /> },
-  optimization: { label: "Optimization", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: <Zap className="w-4 h-4" /> },
-  capacity: { label: "Capacity", color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", icon: <Activity className="w-4 h-4" /> },
+  anomaly: { label: "Anomaly", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", accent: "border-l-red-500", icon: <AlertTriangle className="w-4 h-4" /> },
+  prediction: { label: "Prediction", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", accent: "border-l-amber-500", icon: <TrendingUp className="w-4 h-4" /> },
+  correlation: { label: "Correlation", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", accent: "border-l-blue-500", icon: <GitBranch className="w-4 h-4" /> },
+  optimization: { label: "Optimization", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", accent: "border-l-emerald-500", icon: <Zap className="w-4 h-4" /> },
+  capacity: { label: "Capacity", color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", accent: "border-l-orange-500", icon: <Activity className="w-4 h-4" /> },
 }
 
 const SUGGESTED_PROMPTS = [
@@ -104,7 +104,14 @@ const CHART_STYLE = {
     border: "1px solid hsl(var(--border))",
     borderRadius: "8px",
     fontSize: "11px",
+    color: "hsl(var(--foreground))",
   }
+}
+
+const PRIORITY_META = {
+  high: { label: "HIGH", cls: "bg-red-500/10 text-red-500 border border-red-500/20" },
+  medium: { cls: "bg-amber-500/10 text-amber-500 border border-amber-500/20", label: "MED" },
+  low: { cls: "bg-muted text-muted-foreground border border-border/40", label: "LOW" },
 }
 
 export function AIInsights() {
@@ -147,71 +154,84 @@ export function AIInsights() {
       />
 
       <div className="px-6 pb-6 space-y-5">
-        {/* Model stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Model Accuracy", value: "94.2%", sub: "Last 30 days", icon: <Brain className="w-4 h-4 text-primary" />, trend: "+1.2%" },
-            { label: "Insights Generated", value: "1,284", sub: "This month", icon: <Sparkles className="w-4 h-4 text-primary" />, trend: "+18%" },
-            { label: "Incidents Predicted", value: "47", sub: "Before occurrence", icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, trend: "81% early" },
-            { label: "False Positives", value: "3.8%", sub: "Industry avg: 12%", icon: <CheckCircle className="w-4 h-4 text-emerald-500" />, trend: "−2.1%" },
+            { label: "Model Accuracy", value: "94.2%", sub: "Last 30 days", icon: <Brain className="w-4 h-4 text-primary" />, trend: "+1.2%", trendColor: "text-emerald-500" },
+            { label: "Insights Generated", value: "1,284", sub: "This month", icon: <Sparkles className="w-4 h-4 text-primary" />, trend: "+18%", trendColor: "text-emerald-500" },
+            { label: "Incidents Predicted", value: "47", sub: "Before occurrence", icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, trend: "81% early", trendColor: "text-emerald-500" },
+            { label: "False Positives", value: "3.8%", sub: "Industry avg: 12%", icon: <CheckCircle className="w-4 h-4 text-emerald-500" />, trend: "−2.1%", trendColor: "text-emerald-500" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
               className="premium-card p-4 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">{s.icon}</div>
-              <div>
-                <div className="text-lg font-bold text-foreground">{s.value}</div>
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</div>
-                <div className="text-[10px] text-muted-foreground">{s.sub}</div>
-                <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">{s.trend}</div>
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/15">
+                {s.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="text-lg font-bold tabular-nums text-foreground leading-tight">{s.value}</div>
+                <div className="section-label mt-0.5">{s.label}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</div>
+                <div className={cn("text-[10px] font-semibold mt-1", s.trendColor)}>{s.trend}</div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Ask AI panel */}
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="premium-card p-5 border-primary/20">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
-              <Brain className="w-3.5 h-3.5 text-primary" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center">
+              <Brain className="w-4 h-4 text-primary" />
             </div>
-            <div className="text-sm font-bold text-foreground">Ask AI</div>
-            <Badge variant="secondary" size="sm">GPT-4o powered</Badge>
+            <div>
+              <div className="text-sm font-bold text-foreground leading-none">Ask AI</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">GPT-4o powered · Real-time telemetry analysis</div>
+            </div>
+            <Badge variant="secondary" size="sm" className="ml-auto">GPT-4o</Badge>
           </div>
+
           <div className="flex gap-2 mb-3">
             <Input value={askInput} onChange={e => setAskInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAsk()}
               placeholder="Ask anything about your platform health, anomalies, or root causes…"
               className="text-sm" />
             <Button size="sm" className="gap-2 shrink-0" onClick={() => handleAsk()} disabled={isThinking}>
-              {isThinking ? <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {isThinking
+                ? <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                : <Send className="w-3.5 h-3.5" />}
               Ask
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2 mb-3">
+
+          <div className="flex flex-wrap gap-1.5 mb-4">
             {SUGGESTED_PROMPTS.map(p => (
               <button key={p} onClick={() => { setAskInput(p); handleAsk(p) }}
-                className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all">
+                className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all duration-150">
                 {p}
               </button>
             ))}
           </div>
+
           <AnimatePresence>
             {isThinking && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                className="flex items-center gap-2 text-sm text-muted-foreground">
+                className="flex items-center gap-3 text-sm text-muted-foreground py-2">
                 <div className="flex gap-1">
-                  {[0, 1, 2].map(j => <motion.div key={j} className="w-1.5 h-1.5 rounded-full bg-primary"
-                    animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }} />)}
+                  {[0, 1, 2].map(j => (
+                    <motion.div key={j} className="w-1.5 h-1.5 rounded-full bg-primary"
+                      animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }} />
+                  ))}
                 </div>
-                Analyzing telemetry across all services…
+                <span>Analyzing telemetry across all services…</span>
               </motion.div>
             )}
             {aiResponse && !isThinking && (
               <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl bg-primary/5 border border-primary/20 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="w-3.5 h-3.5 text-primary" />
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="w-5 h-5 rounded bg-primary/15 flex items-center justify-center">
+                    <Brain className="w-3 h-3 text-primary" />
+                  </div>
                   <span className="text-xs font-bold text-primary">AI Analysis</span>
                 </div>
                 <div className="text-sm text-foreground/80 leading-relaxed">{aiResponse}</div>
@@ -220,74 +240,88 @@ export function AIInsights() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            {["all", "anomaly", "prediction", "correlation", "optimization", "capacity"].map(f => (
-              <button key={f} onClick={() => setTypeFilter(f)}
-                className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
-                  typeFilter === f ? "bg-primary/10 text-primary border-primary/30" : "border-border/60 text-muted-foreground hover:border-border"
-                )}>{f}</button>
-            ))}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {["all", "anomaly", "prediction", "correlation", "optimization", "capacity"].map(f => {
+              const meta = f !== "all" ? TYPE_META[f as keyof typeof TYPE_META] : null
+              return (
+                <button key={f} onClick={() => setTypeFilter(f)}
+                  className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
+                    typeFilter === f
+                      ? meta
+                        ? cn(meta.bg, meta.color, meta.border, "shadow-sm")
+                        : "bg-foreground/8 text-foreground border-foreground/20"
+                      : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                  )}>{f}</button>
+              )
+            })}
           </div>
           <div className="flex items-center gap-1.5 ml-auto">
             {["all", "high", "medium", "low"].map(f => (
               <button key={f} onClick={() => setPriorityFilter(f)}
                 className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
-                  priorityFilter === f ? "bg-foreground/8 text-foreground border-foreground/20" : "border-border/60 text-muted-foreground hover:border-border"
+                  priorityFilter === f
+                    ? f === "high" ? "bg-red-500/10 text-red-500 border-red-500/30"
+                    : f === "medium" ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                    : f === "low" ? "bg-muted text-muted-foreground border-border/40"
+                    : "bg-foreground/8 text-foreground border-foreground/20"
+                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
                 )}>{f}</button>
             ))}
           </div>
         </div>
 
-        {/* Insights list */}
         <div className="space-y-3">
           {filtered.map((insight, i) => {
             const meta = TYPE_META[insight.type as keyof typeof TYPE_META]
+            const priorityMeta = PRIORITY_META[insight.priority as keyof typeof PRIORITY_META]
             const isExpanded = expandedInsight === i
             return (
               <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.06 }}
-                className="premium-card group cursor-pointer hover:border-primary/20 transition-all overflow-hidden"
+                className={cn(
+                  "premium-card group cursor-pointer transition-all overflow-hidden border-l-[3px] hover:border-primary/20",
+                  meta.accent
+                )}
                 onClick={() => setExpandedInsight(isExpanded ? null : i)}>
                 <div className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", meta.bg, meta.color)}>
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border", meta.bg, meta.color, meta.border)}>
                       {meta.icon}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", meta.bg, meta.color, meta.border)}>{meta.label}</span>
-                        <span className="text-xs font-mono text-muted-foreground">{insight.app}</span>
-                        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full",
-                          insight.priority === "high" ? "bg-red-500/10 text-red-500" :
-                          insight.priority === "medium" ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
-                        )}>{insight.priority.toUpperCase()}</span>
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border", meta.bg, meta.color, meta.border)}>{meta.label}</span>
+                        <span className="text-xs font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded text-[10px]">{insight.app}</span>
+                        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", priorityMeta.cls)}>{priorityMeta.label}</span>
                         <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                           <Clock className="w-3 h-3" /> {insight.age}
                         </span>
                       </div>
-                      <div className="text-sm font-semibold text-foreground mb-1.5">{insight.title}</div>
+                      <div className="text-sm font-bold text-foreground mb-1.5 leading-snug">{insight.title}</div>
                       <div className="text-xs text-muted-foreground leading-relaxed mb-3">{insight.desc}</div>
 
                       <div className="flex flex-wrap gap-1.5 mb-3">
                         {insight.signals.map(s => (
-                          <span key={s} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground">{s}</span>
+                          <span key={s} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-muted/60 border border-border/40 text-muted-foreground">{s}</span>
                         ))}
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Confidence:</span>
-                          <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground/70">Confidence:</span>
+                          <div className="flex items-center gap-2">
                             <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
                               <motion.div initial={{ width: 0 }} animate={{ width: `${insight.confidence}%` }}
-                                transition={{ delay: 0.3 + i * 0.07, duration: 0.6 }}
-                                className={cn("h-full rounded-full", insight.confidence >= 90 ? "bg-emerald-500" : insight.confidence >= 80 ? "bg-amber-500" : "bg-muted-foreground")} />
+                                transition={{ delay: 0.3 + i * 0.07, duration: 0.7, ease: "easeOut" }}
+                                className={cn("h-full rounded-full",
+                                  insight.confidence >= 90 ? "bg-emerald-500" :
+                                  insight.confidence >= 80 ? "bg-amber-500" : "bg-muted-foreground"
+                                )} />
                             </div>
-                            <span className="text-xs font-semibold text-foreground">{insight.confidence}%</span>
+                            <span className="text-xs font-bold tabular-nums text-foreground">{insight.confidence}%</span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" className="text-xs gap-1 text-primary">
+                        <Button variant="ghost" size="sm" className="text-xs gap-1 text-primary opacity-70 group-hover:opacity-100 transition-opacity">
                           {isExpanded ? "Collapse" : "View Analysis"} <ArrowUpRight className="w-3 h-3" />
                         </Button>
                       </div>
@@ -298,20 +332,20 @@ export function AIInsights() {
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                      className="border-t border-border/60 overflow-hidden">
+                      className="border-t border-border/50 overflow-hidden">
                       <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">What Changed</div>
-                          <div className="text-xs text-foreground/80 leading-relaxed rounded-xl bg-muted/20 border border-border/60 p-3">
+                          <div className="section-label mb-2">What Changed</div>
+                          <div className="text-xs text-foreground/80 leading-relaxed inset-panel p-3">
                             {insight.whatChanged}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recommendation</div>
-                          <div className="rounded-xl bg-primary/5 border border-primary/20 p-3">
+                          <div className="section-label mb-2">Recommendation</div>
+                          <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 mb-3">
                             <div className="text-xs text-foreground/80 leading-relaxed">{insight.recommendation}</div>
                           </div>
-                          <div className="mt-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Impact</div>
+                          <div className="section-label mb-1">Impact</div>
                           <div className="text-xs text-muted-foreground">{insight.impact}</div>
                         </div>
                       </div>
@@ -323,17 +357,25 @@ export function AIInsights() {
           })}
         </div>
 
-        {/* Model confidence chart */}
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
           className="premium-card p-5">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">AI Model Confidence — Last 24h</div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="section-label mb-0.5">AI Model Confidence</div>
+              <div className="text-xs text-muted-foreground">Last 24 hours rolling accuracy</div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold tabular-nums text-foreground">94.2%</div>
+              <div className="text-[10px] text-emerald-500 font-semibold">+1.2% vs prior period</div>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={140}>
             <LineChart data={ACCURACY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis dataKey="h" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={5} />
               <YAxis domain={[80, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <Tooltip {...CHART_STYLE} />
-              <Line type="monotone" dataKey="accuracy" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Accuracy %" />
+              <Line type="monotone" dataKey="accuracy" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} name="Accuracy %" />
             </LineChart>
           </ResponsiveContainer>
         </motion.div>

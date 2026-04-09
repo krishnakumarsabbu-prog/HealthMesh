@@ -40,6 +40,14 @@ const APPS: AppEntry[] = [
 const CRITICALITY_ORDER: Record<Criticality, number> = { P0: 0, P1: 1, P2: 2, P3: 3 }
 const STATUS_ORDER: Record<AppStatus, number> = { critical: 0, degraded: 1, warning: 2, unknown: 3, healthy: 4 }
 
+const STATUS_ACCENT: Record<AppStatus, string> = {
+  critical: "border-l-red-500",
+  degraded: "border-l-orange-500",
+  warning: "border-l-amber-500",
+  healthy: "border-l-transparent",
+  unknown: "border-l-transparent",
+}
+
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const d = data.map((v, i) => ({ i, v }))
   return (
@@ -47,7 +55,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
       <AreaChart data={d} margin={{ top: 1, right: 0, bottom: 1, left: 0 }}>
         <defs>
           <linearGradient id={`msp-${color.replace(/[^a-z]/g, "")}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="5%" stopColor={color} stopOpacity={0.3} />
             <stop offset="95%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
@@ -62,32 +70,31 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
   const scoreColor = app.score >= 90 ? "#10b981" : app.score >= 70 ? "#f59e0b" : "#ef4444"
   const r = 32, circ = 2 * Math.PI * r, filled = (app.score / 100) * circ
 
+  const statusIconBg = app.status === "critical" ? "bg-red-500/12 border border-red-500/20" :
+    app.status === "warning" ? "bg-amber-500/12 border border-amber-500/20" :
+    app.status === "degraded" ? "bg-orange-500/12 border border-orange-500/20" : "bg-primary/12 border border-primary/20"
+
+  const statusIconColor = app.status === "critical" ? "text-red-500" :
+    app.status === "warning" ? "text-amber-500" :
+    app.status === "degraded" ? "text-orange-500" : "text-primary"
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 40 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 40 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      className="fixed top-0 right-0 h-full w-[420px] z-50 bg-card border-l border-border/60 shadow-premium flex flex-col"
+      className="fixed top-0 right-0 h-full w-[440px] z-50 glass-panel-strong border-l border-border/60 shadow-premium flex flex-col"
     >
-      {/* Header */}
-      <div className="flex items-start gap-3 px-5 py-4 border-b border-border/60">
-        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-          app.status === "critical" ? "bg-red-500/10" :
-          app.status === "warning" ? "bg-amber-500/10" :
-          app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
-        )}>
-          <Server className={cn("w-5 h-5",
-            app.status === "critical" ? "text-red-500" :
-            app.status === "warning" ? "text-amber-500" :
-            app.status === "degraded" ? "text-orange-500" : "text-primary"
-          )} />
+      <div className="flex items-start gap-3.5 px-5 py-4 border-b border-border/50">
+        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shrink-0", statusIconBg)}>
+          <Server className={cn("w-5 h-5", statusIconColor)} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-sm font-mono text-foreground truncate">{app.name}</div>
-          <div className="text-xs text-muted-foreground">{app.team} · {app.type}</div>
+          <div className="font-bold text-sm font-mono text-foreground truncate leading-snug">{app.name}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{app.team} · {app.type}</div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <StatusBadge status={app.status} size="sm" />
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -97,7 +104,6 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
 
       <ScrollArea className="flex-1">
         <div className="px-5 py-4 space-y-4">
-          {/* Score + quick stats */}
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
               <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
@@ -111,8 +117,8 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-bold leading-none" style={{ color: scoreColor }}>{app.score}</span>
-                <span className="text-[8px] text-muted-foreground">score</span>
+                <span className="text-lg font-bold leading-none tabular-nums" style={{ color: scoreColor }}>{app.score}</span>
+                <span className="text-[9px] text-muted-foreground mt-0.5 font-medium uppercase tracking-wider">score</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 flex-1">
@@ -120,30 +126,28 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
                 { label: "Uptime", value: app.uptime },
                 { label: "Latency", value: app.latency },
                 { label: "RPM", value: app.rpm },
-                { label: "Failing Checks", value: app.failingChecks === 0 ? "None" : String(app.failingChecks) },
+                { label: "Failing", value: app.failingChecks === 0 ? "None" : String(app.failingChecks) },
               ].map(s => (
-                <div key={s.label} className="rounded-lg bg-muted/50 px-2.5 py-2">
-                  <div className="text-xs font-semibold font-mono text-foreground">{s.value}</div>
-                  <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                <div key={s.label} className="inset-panel px-2.5 py-2">
+                  <div className="text-xs font-bold font-mono tabular-nums text-foreground">{s.value}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{s.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Description */}
-          <div className="rounded-xl bg-muted/30 border border-border/40 p-3">
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">About</div>
+          <div className="inset-panel p-3">
+            <div className="section-label mb-1.5">About</div>
             <p className="text-xs text-foreground/80 leading-relaxed">{app.description}</p>
           </div>
 
-          {/* 12h trend */}
-          <div>
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Health Score — 12h Trend</div>
-            <ResponsiveContainer width="100%" height={60}>
+          <div className="premium-card p-4">
+            <div className="section-label mb-3">Health Score — 12h Trend</div>
+            <ResponsiveContainer width="100%" height={64}>
               <AreaChart data={app.trend.map((v, i) => ({ i, v }))} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
                 <defs>
                   <linearGradient id="drawerGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={scoreColor} stopOpacity={0.3} />
+                    <stop offset="5%" stopColor={scoreColor} stopOpacity={0.35} />
                     <stop offset="95%" stopColor={scoreColor} stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -152,8 +156,7 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
             </ResponsiveContainer>
           </div>
 
-          {/* Details grid */}
-          <div className="space-y-1.5">
+          <div className="space-y-0">
             {[
               { label: "Criticality", value: app.criticality },
               { label: "Environment", value: app.env },
@@ -162,35 +165,33 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
               { label: "Last Incident", value: app.lastIncident },
               { label: "Last Refresh", value: app.lastRefresh },
             ].map(d => (
-              <div key={d.label} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+              <div key={d.label} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                 <span className="text-xs text-muted-foreground">{d.label}</span>
-                <span className="text-xs font-semibold text-foreground">{d.value}</span>
+                <span className="text-xs font-semibold text-foreground tabular-nums">{d.value}</span>
               </div>
             ))}
           </div>
 
-          {/* Tags */}
           {app.tags.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</div>
+              <div className="section-label mb-2">Tags</div>
               <div className="flex flex-wrap gap-1.5">
                 {app.tags.map(t => (
-                  <span key={t} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted border border-border/60 text-muted-foreground">{t}</span>
+                  <span key={t} className="tag-pill">{t}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Incidents */}
           <div>
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Open Incidents</div>
+            <div className="section-label mb-2">Open Incidents</div>
             {app.incidents > 0 ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-500/8 border border-red-500/15">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/8 border border-red-500/15">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                 <span className="text-xs text-red-600 dark:text-red-400 font-semibold">{app.incidents} active incident{app.incidents > 1 ? "s" : ""}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/15">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">No active incidents</span>
               </div>
@@ -199,8 +200,7 @@ function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
         </div>
       </ScrollArea>
 
-      {/* Footer actions */}
-      <div className="flex gap-2 px-5 py-4 border-t border-border/60">
+      <div className="flex gap-2 px-5 py-4 border-t border-border/50 bg-muted/20">
         <Button size="sm" className="flex-1 gap-1.5 text-xs">
           <ArrowUpRight className="w-3.5 h-3.5" /> Open 360° View
         </Button>
@@ -268,9 +268,15 @@ export function ApplicationCatalog() {
 
   const scoreColor = (s: number) => s >= 90 ? "#10b981" : s >= 70 ? "#f59e0b" : "#ef4444"
 
+  const critBadge = (c: Criticality) => cn(
+    "text-[9px] font-bold px-1.5 py-0.5 rounded",
+    c === "P0" ? "text-red-500 bg-red-500/10 border border-red-500/20" :
+    c === "P1" ? "text-amber-500 bg-amber-500/10 border border-amber-500/20" :
+    "text-muted-foreground bg-muted border border-border/40"
+  )
+
   return (
     <>
-      {/* Drawer backdrop */}
       <AnimatePresence>
         {drawerApp && (
           <>
@@ -296,19 +302,18 @@ export function ApplicationCatalog() {
         />
 
         <div className="px-6 pb-6 space-y-4">
-          {/* Status filter pills */}
           <div className="flex items-center gap-2 flex-wrap">
             {(["all", "healthy", "warning", "degraded", "critical"] as const).map(f => (
               <button key={f} onClick={() => setStatusFilter(f)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                   statusFilter === f
-                    ? f === "all" ? "bg-foreground text-background border-foreground"
-                    : f === "healthy" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
-                    : f === "warning" ? "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400"
-                    : f === "degraded" ? "bg-orange-500/15 text-orange-600 border-orange-500/30 dark:text-orange-400"
-                    : "bg-red-500/15 text-red-600 border-red-500/30 dark:text-red-400"
-                    : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+                    ? f === "all" ? "bg-foreground text-background border-foreground shadow-sm"
+                    : f === "healthy" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400 shadow-sm"
+                    : f === "warning" ? "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400 shadow-sm"
+                    : f === "degraded" ? "bg-orange-500/15 text-orange-600 border-orange-500/30 dark:text-orange-400 shadow-sm"
+                    : "bg-red-500/15 text-red-600 border-red-500/30 dark:text-red-400 shadow-sm"
+                    : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border bg-transparent"
                 )}
               >
                 {f !== "all" && (
@@ -319,7 +324,7 @@ export function ApplicationCatalog() {
                   )} />
                 )}
                 <span className="capitalize">{f}</span>
-                <span className="text-[10px] opacity-70">({counts[f as keyof typeof counts] ?? counts.all})</span>
+                <span className="tabular-nums text-[10px] opacity-60">({counts[f as keyof typeof counts] ?? counts.all})</span>
               </button>
             ))}
 
@@ -328,12 +333,12 @@ export function ApplicationCatalog() {
                 onClick={() => setShowFilters(p => !p)}>
                 <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
                 {(critFilter !== "all" || teamFilter !== "all") && (
-                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                     {[critFilter !== "all", teamFilter !== "all"].filter(Boolean).length}
                   </span>
                 )}
               </Button>
-              <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-0.5">
+              <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-0.5 border border-border/40">
                 <Button variant={view === "list" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setView("list")}>
                   <List className="w-4 h-4" />
                 </Button>
@@ -344,7 +349,6 @@ export function ApplicationCatalog() {
             </div>
           </div>
 
-          {/* Search + extended filters */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-48 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -352,7 +356,7 @@ export function ApplicationCatalog() {
                 placeholder="Search apps, teams, tags..." className="pl-9 h-8 text-sm" />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                  <X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                 </button>
               )}
             </div>
@@ -364,7 +368,7 @@ export function ApplicationCatalog() {
                   <select
                     value={critFilter}
                     onChange={e => setCritFilter(e.target.value)}
-                    className="h-8 px-2 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="all">All Criticality</option>
                     {["P0", "P1", "P2", "P3"].map(c => <option key={c} value={c}>{c}</option>)}
@@ -372,7 +376,7 @@ export function ApplicationCatalog() {
                   <select
                     value={teamFilter}
                     onChange={e => setTeamFilter(e.target.value)}
-                    className="h-8 px-2 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     {teams.map(t => <option key={t} value={t}>{t === "all" ? "All Teams" : t}</option>)}
                   </select>
@@ -381,43 +385,52 @@ export function ApplicationCatalog() {
             </AnimatePresence>
 
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
-              <span>Sort:</span>
+              <span className="text-muted-foreground/60">Sort:</span>
               {(["criticality", "score", "latency", "incidents"] as const).map(s => (
                 <button key={s} onClick={() => setSortBy(s)}
-                  className={cn("px-2 py-0.5 rounded-md capitalize transition-all",
+                  className={cn("px-2 py-0.5 rounded-md capitalize transition-all duration-150",
                     sortBy === s ? "text-primary font-semibold bg-primary/10" : "hover:text-foreground"
                   )}>{s}</button>
               ))}
             </div>
           </div>
 
-          {/* Count */}
-          <div className="text-xs text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {APPS.length} applications
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Showing <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> of {APPS.length} applications
+            </p>
+            <div className="live-indicator">
+              <span className="live-dot" />
+              Live
+            </div>
           </div>
 
-          {/* LIST VIEW */}
           {view === "list" && (
             <div className="premium-card overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_80px_72px_72px_72px_60px_48px] gap-3 px-5 py-2.5 border-b border-border/60 bg-muted/20">
+              <div className="grid grid-cols-[2fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 px-5 py-2.5 border-b border-border/50 bg-muted/20">
                 {["Application", "Team / Type", "Status", "Score", "Latency", "Uptime", "Inc.", ""].map(h => (
-                  <span key={h} className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</span>
+                  <span key={h} className="section-label">{h}</span>
                 ))}
               </div>
-              <div className="divide-y divide-border/30">
+              <div className="divide-y divide-border/25">
                 {filtered.map((app, i) => (
                   <motion.div
                     key={app.name}
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.02 }}
                     onClick={() => setDrawerApp(app)}
-                    className="grid grid-cols-[2fr_1fr_80px_72px_72px_72px_60px_48px] gap-3 items-center px-5 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
+                    className={cn(
+                      "grid grid-cols-[2fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 items-center px-5 py-3.5",
+                      "hover:bg-muted/25 cursor-pointer transition-colors duration-150 group",
+                      "border-l-2",
+                      STATUS_ACCENT[app.status]
+                    )}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
                         app.status === "critical" ? "bg-red-500/10" :
                         app.status === "warning" ? "bg-amber-500/10" :
-                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/8"
                       )}>
                         <Server className={cn("w-3.5 h-3.5",
                           app.status === "critical" ? "text-red-500" :
@@ -429,16 +442,13 @@ export function ApplicationCatalog() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-semibold font-mono text-foreground truncate">{app.name}</span>
                           {favorites.has(app.name) && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
-                          <span className={cn("text-[9px] font-bold px-1 rounded shrink-0",
-                            app.criticality === "P0" ? "text-red-500 bg-red-500/10" :
-                            app.criticality === "P1" ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"
-                          )}>{app.criticality}</span>
+                          <span className={critBadge(app.criticality)}>{app.criticality}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
                           {app.tags.slice(0, 2).map(t => (
-                            <span key={t} className="text-[9px] text-muted-foreground/70 font-medium">{t}</span>
+                            <span key={t} className="text-[9px] text-muted-foreground/60 font-medium">{t}</span>
                           ))}
-                          {app.tags.length > 2 && <span className="text-[9px] text-muted-foreground/50">+{app.tags.length - 2}</span>}
+                          {app.tags.length > 2 && <span className="text-[9px] text-muted-foreground/40">+{app.tags.length - 2}</span>}
                         </div>
                       </div>
                     </div>
@@ -452,22 +462,22 @@ export function ApplicationCatalog() {
 
                     <div className="flex items-center gap-1">
                       <MiniSparkline data={app.trend} color={scoreColor(app.score)} />
-                      <span className="text-xs font-mono font-bold" style={{ color: scoreColor(app.score) }}>{app.score}</span>
+                      <span className="text-xs font-mono font-bold tabular-nums" style={{ color: scoreColor(app.score) }}>{app.score}</span>
                     </div>
 
-                    <span className={cn("text-xs font-mono font-semibold",
+                    <span className={cn("text-xs font-mono font-semibold tabular-nums",
                       parseInt(app.latency) > 500 ? "text-red-500" :
                       parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
                     )}>{app.latency}</span>
 
-                    <span className="text-xs font-mono text-foreground">{app.uptime}</span>
+                    <span className="text-xs font-mono tabular-nums text-foreground">{app.uptime}</span>
 
-                    <span className={cn("text-xs font-semibold",
-                      app.incidents > 0 ? "text-red-500" : "text-muted-foreground"
+                    <span className={cn("text-xs font-semibold tabular-nums",
+                      app.incidents > 0 ? "text-red-500" : "text-muted-foreground/50"
                     )}>{app.incidents > 0 ? app.incidents : "—"}</span>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={e => toggleFav(app.name, e)} className="p-1 rounded hover:bg-muted">
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                      <button onClick={e => toggleFav(app.name, e)} className="p-1 rounded hover:bg-muted transition-colors">
                         {favorites.has(app.name)
                           ? <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                           : <StarOff className="w-3 h-3 text-muted-foreground" />
@@ -480,7 +490,6 @@ export function ApplicationCatalog() {
             </div>
           )}
 
-          {/* GRID VIEW */}
           {view === "grid" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((app, i) => (
@@ -488,16 +497,21 @@ export function ApplicationCatalog() {
                   key={app.name}
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  whileHover={{ y: -2 }}
                   onClick={() => setDrawerApp(app)}
-                  className="premium-card p-4 cursor-pointer group hover:shadow-elevation-2 transition-all duration-200"
+                  className={cn(
+                    "premium-card-interactive p-4 group",
+                    "border-t-2",
+                    app.status === "critical" ? "border-t-red-500" :
+                    app.status === "warning" ? "border-t-amber-500" :
+                    app.status === "degraded" ? "border-t-orange-500" : "border-t-transparent"
+                  )}
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
                         app.status === "critical" ? "bg-red-500/10" :
                         app.status === "warning" ? "bg-amber-500/10" :
-                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/8"
                       )}>
                         <Server className={cn("w-4 h-4",
                           app.status === "critical" ? "text-red-500" :
@@ -506,13 +520,8 @@ export function ApplicationCatalog() {
                         )} />
                       </div>
                       <div>
-                        <div className="flex items-center gap-1">
-                          <span className={cn("text-[9px] font-bold px-1 rounded",
-                            app.criticality === "P0" ? "text-red-500 bg-red-500/10" :
-                            app.criticality === "P1" ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"
-                          )}>{app.criticality}</span>
-                          {favorites.has(app.name) && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
-                        </div>
+                        <span className={critBadge(app.criticality)}>{app.criticality}</span>
+                        {favorites.has(app.name) && <Star className="w-3 h-3 text-amber-400 fill-amber-400 ml-1 inline-block" />}
                       </div>
                     </div>
                     <button onClick={e => toggleFav(app.name, e)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted">
@@ -526,28 +535,31 @@ export function ApplicationCatalog() {
                   <div className="font-semibold text-sm font-mono text-foreground mb-0.5 truncate">{app.name}</div>
                   <div className="text-xs text-muted-foreground mb-3">{app.team} · {app.type}</div>
 
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3.5">
                     <StatusBadge status={app.status} size="sm" />
                     <div className="flex items-center gap-1.5">
-                      <span className="text-lg font-bold font-mono leading-none" style={{ color: scoreColor(app.score) }}>{app.score}</span>
+                      <span className="text-lg font-bold font-mono tabular-nums leading-none" style={{ color: scoreColor(app.score) }}>{app.score}</span>
                       <MiniSparkline data={app.trend} color={scoreColor(app.score)} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5 text-center">
-                    <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
-                      <div className={cn("text-xs font-mono font-bold",
+                    <div className={cn("rounded-lg px-1.5 py-1.5",
+                      parseInt(app.latency) > 500 ? "bg-red-500/8" :
+                      parseInt(app.latency) > 200 ? "bg-amber-500/8" : "bg-muted/50"
+                    )}>
+                      <div className={cn("text-xs font-mono font-bold tabular-nums",
                         parseInt(app.latency) > 500 ? "text-red-500" :
                         parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
                       )}>{app.latency}</div>
                       <div className="text-[9px] text-muted-foreground">latency</div>
                     </div>
                     <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
-                      <div className="text-xs font-mono font-bold text-foreground">{app.uptime}</div>
+                      <div className="text-xs font-mono font-bold tabular-nums text-foreground">{app.uptime}</div>
                       <div className="text-[9px] text-muted-foreground">uptime</div>
                     </div>
                     <div className={cn("rounded-lg px-1.5 py-1.5", app.incidents > 0 ? "bg-red-500/8" : "bg-muted/50")}>
-                      <div className={cn("text-xs font-mono font-bold", app.incidents > 0 ? "text-red-500" : "text-foreground")}>
+                      <div className={cn("text-xs font-mono font-bold tabular-nums", app.incidents > 0 ? "text-red-500" : "text-foreground")}>
                         {app.incidents > 0 ? app.incidents : "0"}
                       </div>
                       <div className="text-[9px] text-muted-foreground">incidents</div>
@@ -555,9 +567,9 @@ export function ApplicationCatalog() {
                   </div>
 
                   {app.tags.length > 0 && (
-                    <div className="flex gap-1 mt-2.5 flex-wrap">
+                    <div className="flex gap-1 mt-3 flex-wrap">
                       {app.tags.slice(0, 3).map(t => (
-                        <span key={t} className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted border border-border/40 text-muted-foreground">{t}</span>
+                        <span key={t} className="tag-pill">{t}</span>
                       ))}
                     </div>
                   )}
@@ -568,13 +580,13 @@ export function ApplicationCatalog() {
 
           {filtered.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
-                <Search className="w-5 h-5 text-muted-foreground" />
+              className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-muted/60 border border-border/50 flex items-center justify-center mb-4">
+                <Search className="w-6 h-6 text-muted-foreground/50" />
               </div>
-              <div className="text-sm font-semibold text-foreground mb-1">No applications found</div>
-              <div className="text-xs text-muted-foreground">Try adjusting your search or filters</div>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSearch(""); setStatusFilter("all"); setCritFilter("all"); setTeamFilter("all") }}>
+              <div className="text-sm font-semibold text-foreground mb-1.5">No applications found</div>
+              <div className="text-xs text-muted-foreground mb-4">Try adjusting your search or filters</div>
+              <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setCritFilter("all"); setTeamFilter("all") }}>
                 Clear all filters
               </Button>
             </motion.div>

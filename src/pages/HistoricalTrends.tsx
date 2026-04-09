@@ -72,7 +72,7 @@ const CHART_STYLE = {
 function TrendBadge({ value, suffix = "%" }: { value: number; suffix?: string }) {
   const positive = value > 0
   return (
-    <span className={cn("flex items-center gap-0.5 text-xs font-semibold", positive ? "text-emerald-500" : "text-red-500")}>
+    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold", positive ? "text-emerald-500" : "text-red-500")}>
       {positive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
       {Math.abs(value)}{suffix}
     </span>
@@ -84,14 +84,18 @@ function ScoreBar({ score, prev }: { score: number; prev?: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${score}%` }} />
+        <motion.div
+          initial={{ width: 0 }} animate={{ width: `${score}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className={cn("h-full rounded-full", color)}
+        />
       </div>
       {prev !== undefined && (
         <div className="w-1 bg-muted-foreground/40 rounded-full h-1.5 relative">
           <div className="absolute -left-0.5 w-2 h-0.5 bg-muted-foreground/60 rounded-full" style={{ top: `${100 - prev}%` }} />
         </div>
       )}
-      <span className="text-xs font-semibold text-foreground w-8 text-right">{score}</span>
+      <span className="text-xs font-bold tabular-nums text-foreground w-8 text-right">{score}</span>
     </div>
   )
 }
@@ -131,16 +135,16 @@ export function HistoricalTrends() {
               <AnimatePresence>
                 {showDateDropdown && (
                   <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="absolute right-0 top-full mt-1 w-36 premium-card py-1 z-20 shadow-elevation-2"
+                    initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                    className="absolute right-0 top-full mt-1.5 w-36 premium-card py-1.5 z-20 shadow-elevation-3"
                   >
                     {DATE_RANGES.map(r => (
                       <button
                         key={r}
-                        className={cn("w-full px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors",
-                          r === dateRange ? "text-foreground font-semibold" : "text-muted-foreground"
+                        className={cn("w-full px-3 py-2 text-xs text-left hover:bg-muted transition-colors rounded-md mx-auto",
+                          r === dateRange ? "text-primary font-bold bg-primary/5" : "text-muted-foreground hover:text-foreground"
                         )}
                         onClick={() => { setDateRange(r); setShowDateDropdown(false) }}
                       >
@@ -159,13 +163,12 @@ export function HistoricalTrends() {
       />
 
       <div className="px-6 pb-6 space-y-5">
-        {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Avg Availability", value: "99.94%", trend: +0.03, icon: Activity },
-            { label: "Total Incidents (90d)", value: "39", trend: -34, icon: Clock, suffix: "%" },
-            { label: "MTTR Improvement", value: "28%", trend: +28, icon: TrendingUp },
-            { label: "Avg Latency Trend", value: "−11ms", trend: -12, icon: BarChart2 },
+            { label: "Avg Availability", value: "99.94%", trend: +0.03, icon: Activity, positive: true },
+            { label: "Total Incidents (90d)", value: "39", trend: -34, icon: Clock, suffix: "%", positive: true },
+            { label: "MTTR Improvement", value: "28%", trend: +28, icon: TrendingUp, positive: true },
+            { label: "Avg Latency Trend", value: "−11ms", trend: -12, icon: BarChart2, positive: true },
           ].map((s, i) => (
             <motion.div
               key={i}
@@ -175,10 +178,10 @@ export function HistoricalTrends() {
               className="premium-card p-4"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</span>
+                <span className="section-label">{s.label}</span>
                 <s.icon className="w-3.5 h-3.5 text-muted-foreground" />
               </div>
-              <div className="text-xl font-bold text-foreground mb-1">{s.value}</div>
+              <div className="text-xl font-bold tabular-nums text-foreground mb-1.5">{s.value}</div>
               <TrendBadge value={s.trend} suffix={s.suffix ?? "%"} />
             </motion.div>
           ))}
@@ -186,18 +189,22 @@ export function HistoricalTrends() {
 
         {compareMode && (
           <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 text-xs premium-card px-4 py-3"
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+            className="flex items-center gap-4 text-xs premium-card px-4 py-3 overflow-hidden"
           >
-            <span className="font-semibold text-foreground">Compare mode active</span>
-            <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-primary" /> Current period</span>
-            <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-muted-foreground border-dashed" /> Previous period</span>
-            <button className="ml-auto text-muted-foreground hover:text-foreground" onClick={() => setCompareMode(false)}>Dismiss</button>
+            <span className="font-bold text-foreground">Compare mode</span>
+            <span className="flex items-center gap-1.5 text-primary">
+              <span className="w-5 border-t-2 border-primary rounded" /> Current period
+            </span>
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="w-5 border-t-2 border-muted-foreground border-dashed rounded" /> Previous period
+            </span>
+            <button className="ml-auto text-muted-foreground hover:text-foreground text-xs transition-colors" onClick={() => setCompareMode(false)}>
+              Dismiss
+            </button>
           </motion.div>
         )}
 
-        {/* Main Charts */}
         <Tabs defaultValue="health">
           <TabsList>
             <TabsTrigger value="health">Health Score</TabsTrigger>
@@ -212,42 +219,50 @@ export function HistoricalTrends() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 premium-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overall Health Score — 28 Days</div>
-                  {drillTarget && (
-                    <button className="text-xs text-primary hover:underline" onClick={() => setDrillTarget(null)}>
+                  <div>
+                    <div className="section-label mb-0.5">Overall Health Score</div>
+                    <div className="text-xs text-muted-foreground">28-day rolling window</div>
+                  </div>
+                  {drillTarget ? (
+                    <button className="text-xs text-primary hover:underline font-semibold" onClick={() => setDrillTarget(null)}>
                       Clear drill-down
                     </button>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/60">Click a point to drill down</span>
                   )}
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={WEEKLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }} onClick={(d) => d?.activeLabel && setDrillTarget(d.activeLabel)}>
+                  <AreaChart data={WEEKLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}
+                    onClick={d => d?.activeLabel && setDrillTarget(d.activeLabel)}>
                     <defs>
                       <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
                         <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="scoreGradPrev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={6} />
                     <YAxis domain={[80, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <Tooltip {...CHART_STYLE} />
-                    {drillTarget && <ReferenceLine x={drillTarget} stroke="hsl(var(--primary))" strokeDasharray="4 2" />}
-                    <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#scoreGrad)" name="Health Score" dot={false} />
+                    {drillTarget && <ReferenceLine x={drillTarget} stroke="hsl(var(--primary))" strokeDasharray="4 2" strokeWidth={1.5} />}
+                    <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#scoreGrad)" name="Health Score" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
                 {drillTarget && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 p-3 rounded-lg bg-muted/50 text-xs">
-                    <span className="font-semibold text-foreground">Drill-down: {drillTarget}</span>
-                    <span className="ml-2 text-muted-foreground">Score: {WEEKLY_DATA.find(d => d.day === drillTarget)?.score} · Latency: {WEEKLY_DATA.find(d => d.day === drillTarget)?.latency}ms · Errors: {WEEKLY_DATA.find(d => d.day === drillTarget)?.errors}%</span>
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 inset-panel p-3 text-xs">
+                    <span className="font-bold text-foreground">{drillTarget}</span>
+                    <span className="ml-2 text-muted-foreground">
+                      Score: <span className="font-semibold text-foreground">{WEEKLY_DATA.find(d => d.day === drillTarget)?.score}</span>
+                      {" · "}Latency: <span className="font-semibold text-foreground">{WEEKLY_DATA.find(d => d.day === drillTarget)?.latency}ms</span>
+                      {" · "}Errors: <span className="font-semibold text-foreground">{WEEKLY_DATA.find(d => d.day === drillTarget)?.errors}%</span>
+                    </span>
                   </motion.div>
                 )}
               </div>
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Monthly Score Trend</div>
+                <div className="section-label mb-1">Monthly Score Trend</div>
+                <div className="text-xs text-muted-foreground mb-4">Oct — Apr comparison</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={compareMode ? COMPARE_DATA : MONTHLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
@@ -265,7 +280,8 @@ export function HistoricalTrends() {
           <TabsContent value="availability">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">System Availability — Monthly</div>
+                <div className="section-label mb-1">System Availability</div>
+                <div className="text-xs text-muted-foreground mb-4">Monthly (%)</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={compareMode ? COMPARE_DATA : MONTHLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -10 }}>
                     <defs>
@@ -284,18 +300,26 @@ export function HistoricalTrends() {
                 </ResponsiveContainer>
               </div>
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Uptime by Environment</div>
-                <div className="space-y-4 mt-2">
+                <div className="section-label mb-4">Uptime by Environment</div>
+                <div className="space-y-5">
                   {ENV_TRENDS.map(e => (
                     <div key={e.env}>
-                      <div className="flex justify-between text-xs mb-1.5">
+                      <div className="flex justify-between text-xs mb-2">
                         <span className="capitalize font-semibold text-foreground">{e.env}</span>
-                        <span className="text-muted-foreground">{e.availability}%</span>
+                        <span className={cn("font-mono tabular-nums font-bold",
+                          e.availability >= 99.95 ? "text-emerald-500" :
+                          e.availability >= 99.8 ? "text-amber-500" : "text-red-500"
+                        )}>{e.availability}%</span>
                       </div>
                       <div className="bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", e.availability >= 99.95 ? "bg-emerald-500" : e.availability >= 99.8 ? "bg-amber-500" : "bg-red-500")}
-                          style={{ width: `${((e.availability - 99) / 1) * 100}%` }}
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${((e.availability - 99) / 1) * 100}%` }}
+                          transition={{ duration: 0.7, ease: "easeOut" }}
+                          className={cn("h-full rounded-full",
+                            e.availability >= 99.95 ? "bg-emerald-500" :
+                            e.availability >= 99.8 ? "bg-amber-500" : "bg-red-500"
+                          )}
                         />
                       </div>
                     </div>
@@ -308,7 +332,8 @@ export function HistoricalTrends() {
           <TabsContent value="incidents">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Incident Frequency — Monthly</div>
+                <div className="section-label mb-1">Incident Frequency</div>
+                <div className="text-xs text-muted-foreground mb-4">Monthly count</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={compareMode ? COMPARE_DATA : MONTHLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
@@ -316,19 +341,20 @@ export function HistoricalTrends() {
                     <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <Tooltip {...CHART_STYLE} />
                     {compareMode && <Legend />}
-                    <Bar dataKey="incidents" fill="hsl(var(--primary))" opacity={0.85} radius={[3, 3, 0, 0]} name="Incidents" />
-                    {compareMode && <Bar dataKey="prevIncidents" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[3, 3, 0, 0]} name="Prev Period" />}
+                    <Bar dataKey="incidents" fill="hsl(var(--primary))" opacity={0.85} radius={[4, 4, 0, 0]} name="Incidents" />
+                    {compareMode && <Bar dataKey="prevIncidents" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[4, 4, 0, 0]} name="Prev Period" />}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Daily Incident Count</div>
+                <div className="section-label mb-1">Daily Incident Count</div>
+                <div className="text-xs text-muted-foreground mb-4">Last 14 days</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={WEEKLY_DATA.slice(-14)} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <Tooltip {...CHART_STYLE} />
-                    <Bar dataKey="incidents" fill="#f59e0b" opacity={0.8} radius={[2, 2, 0, 0]} name="Incidents" />
+                    <Bar dataKey="incidents" fill="#f59e0b" opacity={0.8} radius={[3, 3, 0, 0]} name="Incidents" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -338,7 +364,8 @@ export function HistoricalTrends() {
           <TabsContent value="latency">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Avg Latency Trend — 28 Days (ms)</div>
+                <div className="section-label mb-1">Avg Latency Trend</div>
+                <div className="text-xs text-muted-foreground mb-4">28 days (ms)</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={WEEKLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
@@ -350,18 +377,26 @@ export function HistoricalTrends() {
                 </ResponsiveContainer>
               </div>
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Latency by Environment</div>
-                <div className="space-y-4 mt-2">
+                <div className="section-label mb-4">Latency by Environment</div>
+                <div className="space-y-5">
                   {ENV_TRENDS.map(e => (
                     <div key={e.env}>
-                      <div className="flex justify-between text-xs mb-1.5">
+                      <div className="flex justify-between text-xs mb-2">
                         <span className="capitalize font-semibold text-foreground">{e.env}</span>
-                        <span className="text-muted-foreground">{e.latency}ms</span>
+                        <span className={cn("font-mono tabular-nums font-bold",
+                          e.latency <= 90 ? "text-emerald-500" :
+                          e.latency <= 110 ? "text-amber-500" : "text-red-500"
+                        )}>{e.latency}ms</span>
                       </div>
                       <div className="bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", e.latency <= 90 ? "bg-emerald-500" : e.latency <= 110 ? "bg-amber-500" : "bg-red-500")}
-                          style={{ width: `${Math.min((e.latency / 150) * 100, 100)}%` }}
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min((e.latency / 150) * 100, 100)}%` }}
+                          transition={{ duration: 0.7, ease: "easeOut" }}
+                          className={cn("h-full rounded-full",
+                            e.latency <= 90 ? "bg-emerald-500" :
+                            e.latency <= 110 ? "bg-amber-500" : "bg-red-500"
+                          )}
                         />
                       </div>
                     </div>
@@ -373,7 +408,16 @@ export function HistoricalTrends() {
 
           <TabsContent value="errors">
             <div className="premium-card p-5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Error Rate Trend — 28 Days (%)</div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="section-label mb-0.5">Error Rate Trend</div>
+                  <div className="text-xs text-muted-foreground">28 days (%)</div>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-4 border-t-2 border-amber-500 border-dashed rounded" />
+                  <span className="text-muted-foreground">SLO Threshold (1.0%)</span>
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={230}>
                 <AreaChart data={WEEKLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                   <defs>
@@ -386,7 +430,7 @@ export function HistoricalTrends() {
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={6} />
                   <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                   <Tooltip {...CHART_STYLE} />
-                  <ReferenceLine y={1.0} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: "SLO Threshold", fontSize: 10, fill: "#f59e0b" }} />
+                  <ReferenceLine y={1.0} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: "SLO", fontSize: 10, fill: "#f59e0b", position: "right" }} />
                   <Area type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} fill="url(#errGrad)" name="Error Rate (%)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -396,26 +440,28 @@ export function HistoricalTrends() {
           <TabsContent value="mttr">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Mean Time to Resolve (min)</div>
+                <div className="section-label mb-1">Mean Time to Resolve</div>
+                <div className="text-xs text-muted-foreground mb-4">Minutes · monthly</div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={MONTHLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <Tooltip {...CHART_STYLE} />
-                    <Bar dataKey="mttr" fill="hsl(var(--primary))" opacity={0.85} radius={[3, 3, 0, 0]} name="MTTR (min)" />
+                    <Bar dataKey="mttr" fill="hsl(var(--primary))" opacity={0.85} radius={[4, 4, 0, 0]} name="MTTR (min)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="premium-card p-5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Mean Time to Detect (min)</div>
+                <div className="section-label mb-1">Mean Time to Detect</div>
+                <div className="text-xs text-muted-foreground mb-4">Minutes · monthly</div>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={MONTHLY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                     <Tooltip {...CHART_STYLE} />
-                    <Bar dataKey="mttd" fill="#10b981" opacity={0.85} radius={[3, 3, 0, 0]} name="MTTD (min)" />
+                    <Bar dataKey="mttd" fill="#10b981" opacity={0.85} radius={[4, 4, 0, 0]} name="MTTD (min)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -423,18 +469,16 @@ export function HistoricalTrends() {
           </TabsContent>
         </Tabs>
 
-        {/* Dimension Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Source-wise */}
           <div className="premium-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <Layers className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source-wise Health</span>
+              <span className="section-label">Source-wise Health</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {SOURCE_TRENDS.map(s => (
                 <div key={s.name}>
-                  <div className="flex items-center justify-between text-xs mb-1">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="font-medium text-foreground truncate pr-2">{s.name}</span>
                     <TrendBadge value={s.trend} />
                   </div>
@@ -444,16 +488,15 @@ export function HistoricalTrends() {
             </div>
           </div>
 
-          {/* Team-wise */}
           <div className="premium-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Team-wise Health</span>
+              <span className="section-label">Team-wise Health</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {TEAM_TRENDS.map(t => (
                 <div key={t.name}>
-                  <div className="flex items-center justify-between text-xs mb-1">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="font-medium text-foreground truncate pr-2">{t.name}</span>
                     <TrendBadge value={t.trend} />
                   </div>
@@ -463,27 +506,36 @@ export function HistoricalTrends() {
             </div>
           </div>
 
-          {/* Environment-wise */}
           <div className="premium-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Environment Health</span>
+              <span className="section-label">Environment Health</span>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {ENV_TRENDS.map(e => (
-                <div key={e.env} className="rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors cursor-pointer">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="capitalize font-semibold text-sm text-foreground">{e.env}</span>
-                    <span className={cn("text-xs font-bold", e.score >= 90 ? "text-emerald-500" : e.score >= 75 ? "text-amber-500" : "text-red-500")}>
-                      {e.score}
-                    </span>
+                <motion.div key={e.env} whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }}
+                  className="premium-card-interactive p-3.5">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="capitalize font-bold text-sm text-foreground">{e.env}</span>
+                    <span className={cn("text-base font-bold tabular-nums",
+                      e.score >= 90 ? "text-emerald-500" : e.score >= 75 ? "text-amber-500" : "text-red-500"
+                    )}>{e.score}</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
-                    <div><div className="font-semibold text-foreground">{e.incidents}</div>Incidents</div>
-                    <div><div className="font-semibold text-foreground">{e.availability}%</div>Uptime</div>
-                    <div><div className="font-semibold text-foreground">{e.latency}ms</div>Latency</div>
+                  <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
+                    <div className="text-center">
+                      <div className="font-bold text-foreground text-xs tabular-nums">{e.incidents}</div>
+                      <div>incidents</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-foreground text-xs tabular-nums">{e.availability}%</div>
+                      <div>uptime</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-foreground text-xs tabular-nums">{e.latency}ms</div>
+                      <div>latency</div>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>

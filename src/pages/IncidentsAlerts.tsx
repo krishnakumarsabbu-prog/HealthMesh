@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   TriangleAlert as AlertTriangle, CircleX, Clock, CircleCheck as CheckCircle, User,
   Plus, Search, X, ChevronRight, Layers, Zap, ArrowUpRight, Activity,
-  Brain, Eye
+  Brain, Eye, Flame
 } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -134,11 +134,11 @@ const STATUS_META = {
 }
 
 const SEV_COLORS = {
-  critical: { icon: "text-red-500", bg: "bg-red-500/10" },
-  warning: { icon: "text-amber-500", bg: "bg-amber-500/10" },
-  degraded: { icon: "text-orange-500", bg: "bg-orange-500/10" },
-  healthy: { icon: "text-emerald-500", bg: "bg-emerald-500/10" },
-  unknown: { icon: "text-muted-foreground", bg: "bg-muted/50" },
+  critical: { icon: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", accent: "border-l-red-500" },
+  warning: { icon: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", accent: "border-l-amber-500" },
+  degraded: { icon: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", accent: "border-l-orange-500" },
+  healthy: { icon: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", accent: "border-l-emerald-500" },
+  unknown: { icon: "text-muted-foreground", bg: "bg-muted/50", border: "border-border/40", accent: "border-l-border" },
 }
 
 const TIMELINE_COLORS: Record<string, string> = {
@@ -191,35 +191,37 @@ export function IncidentsAlerts() {
       />
 
       <div className="px-6 pb-6 space-y-5">
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Active", value: stats.active, color: "text-red-500", bg: "bg-red-500/8 border-red-500/15", dot: "bg-red-500 animate-pulse" },
-            { label: "Investigating", value: stats.investigating, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/15", dot: "bg-amber-500" },
-            { label: "Resolved (7d)", value: stats.resolved + 14, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/15", dot: "bg-emerald-500" },
-            { label: "MTTR (7d)", value: stats.mttr, color: "text-blue-500", bg: "bg-blue-500/8 border-blue-500/15", dot: "bg-blue-500" },
+            { label: "Active", value: stats.active, color: "text-red-500", bg: "bg-red-500/8 border-red-500/20", dot: "bg-red-500 animate-pulse", glow: "shadow-glow-red" },
+            { label: "Investigating", value: stats.investigating, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/20", dot: "bg-amber-500", glow: "" },
+            { label: "Resolved (7d)", value: stats.resolved + 14, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/20", dot: "bg-emerald-500", glow: "" },
+            { label: "MTTR (7d)", value: stats.mttr, color: "text-blue-500", bg: "bg-blue-500/8 border-blue-500/20", dot: "bg-blue-400", glow: "" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className={cn("rounded-xl border p-4 flex items-center gap-3", s.bg)}>
-              <div className={cn("w-2 h-2 rounded-full shrink-0", s.dot)} />
+              className={cn("rounded-xl border p-4 flex items-center gap-3.5", s.bg, s.glow)}>
+              <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", s.dot)} />
               <div>
-                <div className={cn("text-2xl font-bold tracking-tight", s.color)}>{s.value}</div>
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</div>
+                <div className={cn("text-2xl font-bold tracking-tight tabular-nums", s.color)}>{s.value}</div>
+                <div className="section-label mt-0.5">{s.label}</div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Tab + filters */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 shrink-0">
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border border-border/40 shrink-0">
             {["incidents", "alerts"].map(t => (
               <button key={t} onClick={() => setActiveTab(t as "incidents" | "alerts")}
                 className={cn("px-3 py-1 text-xs font-semibold rounded-md transition-all capitalize",
-                  activeTab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}>{t}</button>
+                  activeTab === t ? "bg-background text-foreground shadow-sm border border-border/40" : "text-muted-foreground hover:text-foreground"
+                )}>
+                {t}
+                {t === "alerts" && <span className="ml-1.5 px-1 py-0 rounded text-[9px] bg-amber-500/15 text-amber-500 border border-amber-500/20 font-bold">{ALERTS.length}</span>}
+              </button>
             ))}
           </div>
+
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search incidents…"
@@ -227,19 +229,26 @@ export function IncidentsAlerts() {
             {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
               <X className="w-3 h-3 text-muted-foreground" /></button>}
           </div>
+
           <div className="flex items-center gap-1.5">
             {["all", "active", "resolved"].map(f => (
               <button key={f} onClick={() => setStatusFilter(f)}
                 className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
-                  statusFilter === f ? "bg-primary/10 text-primary border-primary/30" : "border-border/60 text-muted-foreground hover:border-border"
+                  statusFilter === f ? "bg-primary/10 text-primary border-primary/30 shadow-sm" : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
                 )}>{f}</button>
             ))}
           </div>
+
           <div className="flex items-center gap-1.5">
             {["all", "critical", "warning", "degraded"].map(f => (
               <button key={f} onClick={() => setSeverityFilter(f)}
                 className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
-                  severityFilter === f ? "bg-foreground/8 text-foreground border-foreground/20" : "border-border/60 text-muted-foreground hover:border-border"
+                  severityFilter === f
+                    ? f === "critical" ? "bg-red-500/10 text-red-500 border-red-500/30"
+                    : f === "warning" ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                    : f === "degraded" ? "bg-orange-500/10 text-orange-500 border-orange-500/30"
+                    : "bg-foreground/8 text-foreground border-foreground/20"
+                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
                 )}>{f}</button>
             ))}
           </div>
@@ -254,69 +263,97 @@ export function IncidentsAlerts() {
                 return (
                   <motion.div key={inc.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
                     onClick={() => setSelectedIncident(inc)}
-                    className="premium-card p-5 cursor-pointer group hover:border-primary/25 transition-all">
+                    className={cn(
+                      "premium-card p-5 cursor-pointer group hover:border-primary/20 transition-all border-l-[3px]",
+                      sev.accent
+                    )}>
                     <div className="flex items-start gap-4">
                       <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5", sev.bg)}>
-                        {inc.severity === "critical" ? <CircleX className={cn("w-4 h-4", sev.icon)} /> :
-                          <AlertTriangle className={cn("w-4 h-4", sev.icon)} />}
+                        {inc.severity === "critical"
+                          ? <Flame className={cn("w-4 h-4", sev.icon)} />
+                          : <AlertTriangle className={cn("w-4 h-4", sev.icon)} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                          <span className="text-xs font-mono text-muted-foreground">{inc.id}</span>
+                          <span className="text-xs font-mono text-muted-foreground/70">{inc.id}</span>
                           <StatusBadge status={inc.severity as "critical" | "warning" | "degraded"} size="sm" />
-                          <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full border", st.bg, st.text)}>
-                            <span className="flex items-center gap-1.5">
-                              <span className={cn("w-1.5 h-1.5 rounded-full", st.dot)} />
-                              {st.label}
-                            </span>
+                          <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border", st.bg, st.text)}>
+                            <span className={cn("w-1.5 h-1.5 rounded-full", st.dot)} />
+                            {st.label}
                           </span>
-                          <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1 shrink-0">
                             <Clock className="w-3 h-3" /> {inc.age}
                           </span>
                         </div>
-                        <div className="text-sm font-semibold text-foreground mb-1.5">{inc.title}</div>
+                        <div className="text-sm font-bold text-foreground mb-1.5 leading-snug">{inc.title}</div>
                         <div className="text-xs text-muted-foreground leading-relaxed mb-3">{inc.desc}</div>
                         <div className="flex items-center flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><User className="w-3 h-3" /> {inc.assignee}</span>
-                          <span className="flex items-center gap-1"><Layers className="w-3 h-3" />
-                            {inc.apps.map(a => <span key={a} className="font-mono text-foreground/70 ml-1">{a}</span>)}
+                          <span className="flex items-center gap-1.5">
+                            <User className="w-3 h-3" />
+                            <span className="font-medium text-foreground/80">{inc.assignee}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Layers className="w-3 h-3" />
+                            <span className="flex gap-1">
+                              {inc.apps.map(a => (
+                                <span key={a} className="font-mono text-foreground/70 bg-muted/60 px-1.5 py-0.5 rounded text-[10px]">{a}</span>
+                              ))}
+                            </span>
                           </span>
                           {inc.healthImpact > 0 && (
                             <span className="flex items-center gap-1 text-red-500 font-semibold">
-                              <ArrowUpRight className="w-3 h-3" /> -{inc.healthImpact}pts health impact
+                              <ArrowUpRight className="w-3 h-3" /> −{inc.healthImpact}pts health impact
                             </span>
                           )}
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs gap-1">
+                      <Button variant="ghost" size="sm" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs gap-1.5 text-primary">
                         <Eye className="w-3.5 h-3.5" /> View
                       </Button>
                     </div>
                   </motion.div>
                 )
               })}
+
+              {filtered.length === 0 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/8 border border-emerald-500/20 flex items-center justify-center mb-4">
+                    <CheckCircle className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <div className="text-sm font-semibold text-foreground mb-1.5">No incidents found</div>
+                  <div className="text-xs text-muted-foreground">All clear — adjust filters to see more</div>
+                </motion.div>
+              )}
             </motion.div>
           ) : (
             <motion.div key="alerts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="premium-card overflow-hidden">
-              <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <span></span><span>Rule</span><span>Application</span><span>Severity</span><span>Source</span><span>Time</span>
+              <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-border/50 bg-muted/20">
+                <span className="section-label"></span>
+                <span className="section-label">Rule</span>
+                <span className="section-label">Application</span>
+                <span className="section-label">Severity</span>
+                <span className="section-label">Source</span>
+                <span className="section-label">Time</span>
               </div>
-              <div className="divide-y divide-border/40">
+              <div className="divide-y divide-border/30">
                 {ALERTS.map((a, i) => (
                   <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
-                    className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3 hover:bg-muted/20 cursor-pointer transition-colors">
+                    className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 cursor-pointer transition-colors duration-150 group">
                     <div className={cn("w-2 h-2 rounded-full shrink-0",
                       a.severity === "critical" ? "bg-red-500 animate-pulse" : "bg-amber-500")} />
                     <div>
                       <div className="text-xs font-semibold text-foreground">{a.rule}</div>
-                      <div className="text-[10px] font-mono text-muted-foreground">{a.id}</div>
+                      <div className="text-[10px] font-mono text-muted-foreground/70 mt-0.5">{a.id}</div>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">{a.app}</span>
+                    <span className="text-xs font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded w-fit">{a.app}</span>
                     <span className={cn("text-xs font-semibold capitalize",
                       a.severity === "critical" ? "text-red-500" : "text-amber-500")}>{a.severity}</span>
                     <span className="text-xs text-muted-foreground">{a.source}</span>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{a.time}</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" />{a.time}
+                    </span>
                   </motion.div>
                 ))}
               </div>
@@ -325,7 +362,6 @@ export function IncidentsAlerts() {
         </AnimatePresence>
       </div>
 
-      {/* Incident detail drawer */}
       <AnimatePresence>
         {selectedIncident && (
           <>
@@ -334,23 +370,27 @@ export function IncidentsAlerts() {
               className="fixed inset-0 z-40 bg-background/40 backdrop-blur-sm" />
             <motion.div initial={{ x: "100%", opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: "100%", opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-[480px] bg-background border-l border-border flex flex-col shadow-2xl">
-              <div className="flex items-start justify-between p-5 border-b border-border/60">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono text-muted-foreground">{selectedIncident.id}</span>
+              className="fixed right-0 top-0 bottom-0 z-50 w-[480px] glass-panel-strong border-l border-border/60 flex flex-col">
+              <div className="flex items-start justify-between p-5 border-b border-border/50">
+                <div className="flex-1 min-w-0 pr-3">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="text-xs font-mono text-muted-foreground/70">{selectedIncident.id}</span>
                     <StatusBadge status={selectedIncident.severity as "critical" | "warning" | "degraded"} size="sm" />
-                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full border",
+                    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border",
                       STATUS_META[selectedIncident.status as keyof typeof STATUS_META].bg,
                       STATUS_META[selectedIncident.status as keyof typeof STATUS_META].text
-                    )}>{STATUS_META[selectedIncident.status as keyof typeof STATUS_META].label}</span>
+                    )}>
+                      <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_META[selectedIncident.status as keyof typeof STATUS_META].dot)} />
+                      {STATUS_META[selectedIncident.status as keyof typeof STATUS_META].label}
+                    </span>
                   </div>
                   <div className="text-sm font-bold text-foreground leading-snug">{selectedIncident.title}</div>
                 </div>
-                <Button variant="ghost" size="icon-sm" onClick={() => setSelectedIncident(null)}>
+                <Button variant="ghost" size="icon-sm" onClick={() => setSelectedIncident(null)} className="shrink-0">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+
               <div className="flex-1 overflow-y-auto p-5 space-y-5">
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -358,31 +398,36 @@ export function IncidentsAlerts() {
                     { label: "Team", value: selectedIncident.owner },
                     { label: "Age", value: selectedIncident.age },
                   ].map((m, i) => (
-                    <div key={i} className="rounded-xl bg-muted/30 border border-border/60 p-3 text-center">
+                    <div key={i} className="inset-panel p-3 text-center">
                       <div className="text-sm font-bold text-foreground">{m.value}</div>
-                      <div className="text-[10px] text-muted-foreground">{m.label}</div>
+                      <div className="section-label mt-1">{m.label}</div>
                     </div>
                   ))}
                 </div>
+
                 <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-primary" />
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-primary/15 flex items-center justify-center">
+                      <Brain className="w-3.5 h-3.5 text-primary" />
+                    </div>
                     <div className="text-xs font-bold text-primary">AI Probable Cause</div>
                   </div>
-                  <div className="text-sm text-foreground font-medium">{selectedIncident.cause}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{selectedIncident.desc}</div>
+                  <div className="text-sm text-foreground font-semibold mb-1.5">{selectedIncident.cause}</div>
+                  <div className="text-xs text-muted-foreground leading-relaxed">{selectedIncident.desc}</div>
                 </div>
+
                 <div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Impacted Applications</div>
+                  <div className="section-label mb-2">Impacted Applications</div>
                   <div className="flex flex-wrap gap-2">
                     {selectedIncident.apps.map(app => (
                       <span key={app} className="font-mono text-xs px-2.5 py-1 rounded-lg bg-red-500/8 border border-red-500/20 text-foreground">{app}</span>
                     ))}
                   </div>
                 </div>
+
                 {selectedIncident.affectedDeps.length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Affected Dependencies</div>
+                    <div className="section-label mb-2">Affected Dependencies</div>
                     <div className="flex flex-wrap gap-2">
                       {selectedIncident.affectedDeps.map(dep => (
                         <span key={dep} className="font-mono text-xs px-2.5 py-1 rounded-lg bg-amber-500/8 border border-amber-500/20 text-foreground">{dep}</span>
@@ -390,32 +435,44 @@ export function IncidentsAlerts() {
                     </div>
                   </div>
                 )}
+
                 <div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Event Timeline</div>
-                  <div className="relative pl-4">
-                    <div className="absolute left-1.5 top-0 bottom-0 w-px bg-border/60" />
-                    <div className="space-y-3">
+                  <div className="section-label mb-3">Event Timeline</div>
+                  <div className="relative pl-5">
+                    <div className="absolute left-2 top-0 bottom-0 w-px bg-border/60" />
+                    <div className="space-y-3.5">
                       {selectedIncident.timeline.map((ev, i) => (
                         <div key={i} className="relative flex items-start gap-3">
-                          <div className={cn("absolute -left-[14px] w-2.5 h-2.5 rounded-full mt-0.5 border-2 border-background",
+                          <div className={cn("absolute -left-[18px] w-3 h-3 rounded-full mt-0.5 border-2 border-background z-10",
                             TIMELINE_COLORS[ev.type] || "bg-muted")} />
-                          <div className="font-mono text-[10px] text-muted-foreground w-16 shrink-0 mt-0.5">{ev.time}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground w-16 shrink-0 mt-0.5 tabular-nums">{ev.time}</div>
                           <div className="text-xs text-foreground/80 leading-relaxed">{ev.event}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recommended Next Checks</div>
-                  <ul className="space-y-1.5 text-xs text-muted-foreground">
-                    <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" /> Review connection pool settings on {selectedIncident.affectedDeps[0] || "affected service"}</li>
-                    <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" /> Check recent deployment activity in the past 2h</li>
-                    <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" /> Correlate with {selectedIncident.sources[0]} logs for full trace</li>
+
+                <div className="inset-panel p-4">
+                  <div className="section-label mb-2.5">Recommended Next Checks</div>
+                  <ul className="space-y-2 text-xs text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                      Review connection pool settings on {selectedIncident.affectedDeps[0] || "affected service"}
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                      Check recent deployment activity in the past 2h
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                      Correlate with {selectedIncident.sources[0]} logs for full trace
+                    </li>
                   </ul>
                 </div>
               </div>
-              <div className="border-t border-border/60 p-4 grid grid-cols-2 gap-2">
+
+              <div className="border-t border-border/50 p-4 grid grid-cols-2 gap-2 bg-muted/10">
                 <Button variant="outline" size="sm" className="gap-2 text-xs">
                   <CheckCircle className="w-3.5 h-3.5" /> Acknowledge
                 </Button>
