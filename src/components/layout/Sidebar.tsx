@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { LayoutDashboard, AppWindow, Layers, Plug2, TriangleAlert as AlertTriangle, GitBranch, Sparkles, ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings, ChevronLeft, ChevronRight, Activity, Zap, Globe, Database } from "lucide-react"
+import { LayoutDashboard, AppWindow, Layers, Plug2, TriangleAlert as AlertTriangle, GitBranch, Sparkles, ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings, ChevronLeft, ChevronRight, Activity, Wrench, Target, FileText, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -37,6 +37,16 @@ const NAV_SECTIONS = [
       { icon: Wand2, label: "Onboarding Studio", path: "/onboarding", description: "Connect new applications" },
       { icon: Users, label: "Teams & Ownership", path: "/teams", description: "People & responsibilities" },
       { icon: Settings, label: "Settings & Admin", path: "/settings", description: "Configuration & access" },
+    ]
+  },
+  {
+    label: "Governance",
+    items: [
+      { icon: Wrench, label: "Maintenance Windows", path: "/maintenance", description: "Scheduled downtime windows" },
+      { icon: Target, label: "SLA / SLO Settings", path: "/sla", description: "Objectives & error budgets" },
+      { icon: FileText, label: "Audit Logs", path: "/audit", description: "Activity & change history" },
+      { icon: Shield, label: "Roles & Permissions", path: "/roles", description: "Access control & user roles" },
+      { icon: Activity, label: "System Status", path: "/system-status", description: "Platform health & uptime" },
     ]
   }
 ]

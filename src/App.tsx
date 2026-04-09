@@ -14,6 +14,11 @@ import { OnboardingStudio } from "@/pages/OnboardingStudio"
 import { HistoricalTrends } from "@/pages/HistoricalTrends"
 import { TeamsOwnership } from "@/pages/TeamsOwnership"
 import { SettingsAdmin } from "@/pages/SettingsAdmin"
+import { MaintenanceWindowsPage } from "@/pages/MaintenanceWindowsPage"
+import { SLASettingsPage } from "@/pages/SLASettingsPage"
+import { AuditLogsPage } from "@/pages/AuditLogsPage"
+import { RolesPermissionsPage } from "@/pages/RolesPermissionsPage"
+import { SystemStatusPage } from "@/pages/SystemStatusPage"
 
 export default function App() {
   return (
@@ -34,6 +39,11 @@ export default function App() {
               <Route path="/trends" element={<HistoricalTrends />} />
               <Route path="/teams" element={<TeamsOwnership />} />
               <Route path="/settings" element={<SettingsAdmin />} />
+              <Route path="/maintenance" element={<MaintenanceWindowsPage />} />
+              <Route path="/sla" element={<SLASettingsPage />} />
+              <Route path="/audit" element={<AuditLogsPage />} />
+              <Route path="/roles" element={<RolesPermissionsPage />} />
+              <Route path="/system-status" element={<SystemStatusPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

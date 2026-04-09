@@ -1,167 +1,219 @@
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { Settings, User, Bell, Shield, Palette, Database, Key, Globe, ChevronRight } from "lucide-react"
+import { Settings, Bell, Shield, Palette, Database, Key, Globe, Wrench, Target, FileText, Users, Activity, ChevronRight } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { useTheme } from "@/context/ThemeContext"
 import { cn } from "@/lib/utils"
 
-const SETTINGS_NAV = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "api", label: "API Access", icon: Key },
-  { id: "data", label: "Data & Retention", icon: Database },
+import { MaintenanceWindows } from "@/pages/settings/MaintenanceWindows"
+import { SLASettings } from "@/pages/settings/SLASettings"
+import { AuditLogs } from "@/pages/settings/AuditLogs"
+import { RolesPermissions } from "@/pages/settings/RolesPermissions"
+import { NotificationPreferences } from "@/pages/settings/NotificationPreferences"
+import { BrandingWorkspace } from "@/pages/settings/BrandingWorkspace"
+import { SystemStatus } from "@/pages/settings/SystemStatus"
+
+type SettingsSection =
+  | "general"
+  | "branding"
+  | "notifications"
+  | "roles"
+  | "api"
+  | "data"
+  | "maintenance"
+  | "sla"
+  | "audit"
+  | "system"
+
+const SETTINGS_NAV: { id: SettingsSection; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string; description: string }[] = [
+  { id: "general", label: "General", icon: Settings, description: "Organization & data settings" },
+  { id: "branding", label: "Branding & Workspace", icon: Palette, description: "Theme, logo, and regional" },
+  { id: "notifications", label: "Notifications", icon: Bell, description: "Alert routing & preferences" },
+  { id: "roles", label: "Roles & Permissions", icon: Shield, description: "Access control & user roles" },
+  { id: "api", label: "API Access", icon: Key, description: "API keys & tokens" },
+  { id: "maintenance", label: "Maintenance Windows", icon: Wrench, description: "Scheduled downtime windows" },
+  { id: "sla", label: "SLA / SLO Settings", icon: Target, description: "Objectives & error budgets" },
+  { id: "audit", label: "Audit Logs", icon: FileText, description: "Activity & change history" },
+  { id: "system", label: "System Status", icon: Activity, description: "Platform health & uptime", badge: "1 issue" },
+  { id: "data", label: "Data & Retention", icon: Database, description: "Storage & retention policy" },
 ]
 
+function GeneralSettings() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+      <div className="rounded-xl border border-border/60 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border/60 bg-muted/20">
+          <span className="text-xs font-semibold text-foreground">Organization</span>
+        </div>
+        <div className="p-4 space-y-4 max-w-md">
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Organization Name</label>
+            <Input defaultValue="Acme Corporation" className="h-8 text-sm" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Default Environment</label>
+            <Input defaultValue="Production" className="h-8 text-sm" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Timezone</label>
+            <Input defaultValue="UTC" className="h-8 text-sm" />
+          </div>
+          <Button size="sm">Save Changes</Button>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function APISettings() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-bold text-foreground mb-0.5">API Access</div>
+          <div className="text-xs text-muted-foreground">Manage API keys for programmatic access to HealthMesh</div>
+        </div>
+        <Button size="sm" className="gap-2"><Key className="w-3.5 h-3.5" /> Generate Key</Button>
+      </div>
+      <div className="rounded-xl border border-border/60 overflow-hidden">
+        <div className="divide-y divide-border/40">
+          {[
+            { name: "CI/CD Integration", key: "hm_live_****3a8f", created: "2026-01-15", lastUsed: "2 hours ago", perms: ["read:apps", "write:rules"] },
+            { name: "Monitoring Dashboard", key: "hm_live_****9c2d", created: "2025-12-01", lastUsed: "5 min ago", perms: ["read:*"] },
+            { name: "Grafana Plugin", key: "hm_live_****1b7e", created: "2025-11-20", lastUsed: "1 day ago", perms: ["read:metrics"] },
+          ].map((k, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+              <div>
+                <div className="font-semibold text-sm text-foreground">{k.name}</div>
+                <div className="font-mono text-xs text-muted-foreground mt-0.5">{k.key}</div>
+                <div className="flex gap-1.5 mt-1">
+                  {k.perms.map(p => <span key={p} className="text-[9px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{p}</span>)}
+                </div>
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <div>Created {k.created}</div>
+                <div>Used {k.lastUsed}</div>
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-500 hover:text-red-500 mt-1">Revoke</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function DataRetentionSettings() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+      <div>
+        <div className="text-sm font-bold text-foreground mb-0.5">Data & Retention</div>
+        <div className="text-xs text-muted-foreground">Configure how long HealthMesh retains metric, event, and log data</div>
+      </div>
+      <div className="rounded-xl border border-border/60 overflow-hidden">
+        <div className="divide-y divide-border/40">
+          {[
+            { label: "Raw Metrics", value: "30 days", editable: true },
+            { label: "Aggregated Metrics (1m)", value: "1 year", editable: true },
+            { label: "Events & Logs", value: "90 days", editable: true },
+            { label: "Incident History", value: "Unlimited", editable: false },
+            { label: "Audit Logs", value: "90 days", editable: false },
+            { label: "AI Insight Records", value: "6 months", editable: true },
+          ].map(item => (
+            <div key={item.label} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+              <span className="text-sm text-foreground">{item.label}</span>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">{item.value}</Badge>
+                {item.editable && <Button size="sm" variant="ghost" className="h-6 text-xs">Edit</Button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-600 dark:text-amber-400">
+        Reducing retention periods will permanently delete historical data. This action cannot be undone.
+      </div>
+    </motion.div>
+  )
+}
+
 export function SettingsAdmin() {
-  const [activeSection, setActiveSection] = useState("general")
-  const { theme, setTheme } = useTheme()
+  const [activeSection, setActiveSection] = useState<SettingsSection>("general")
+
+  const SECTION_CONTENT: Record<SettingsSection, React.ReactNode> = {
+    general: <GeneralSettings />,
+    branding: <BrandingWorkspace />,
+    notifications: <NotificationPreferences />,
+    roles: <RolesPermissions />,
+    api: <APISettings />,
+    maintenance: <MaintenanceWindows />,
+    sla: <SLASettings />,
+    audit: <AuditLogs />,
+    system: <SystemStatus />,
+    data: <DataRetentionSettings />,
+  }
+
+  const activeNav = SETTINGS_NAV.find(n => n.id === activeSection)
 
   return (
     <div className="min-h-full">
       <PageHeader
         title="Settings & Admin"
-        description="Configure HealthMesh platform settings, access control, and system preferences"
+        description="Configure platform settings, access control, integrations, and operational policies"
       />
 
       <div className="px-6 pb-6">
         <div className="flex gap-6">
           {/* Settings nav */}
-          <div className="w-48 shrink-0">
+          <div className="w-52 shrink-0">
             <nav className="space-y-0.5 sticky top-24">
               {SETTINGS_NAV.map(item => {
                 const Icon = item.icon
+                const isActive = activeSection === item.id
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
                     className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-left",
-                      activeSection === item.id
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-left group relative",
+                      isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     )}
                   >
-                    <Icon className="w-4 h-4" />
-                    {item.label}
+                    {isActive && (
+                      <motion.div layoutId="settings-active" className="absolute inset-0 bg-primary/10 rounded-lg" transition={{ duration: 0.18 }} />
+                    )}
+                    <Icon className="w-4 h-4 relative z-10 shrink-0" />
+                    <span className="flex-1 truncate relative z-10">{item.label}</span>
+                    {item.badge && (
+                      <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full relative z-10">
+                        {item.badge}
+                      </span>
+                    )}
+                    {isActive && <ChevronRight className="w-3 h-3 relative z-10 shrink-0 text-primary" />}
                   </button>
                 )
               })}
             </nav>
           </div>
 
-          {/* Settings content */}
+          {/* Content */}
           <div className="flex-1 min-w-0">
-            {activeSection === "general" && (
-              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                <div className="premium-card p-5">
-                  <div className="text-sm font-semibold text-foreground mb-4">Organization</div>
-                  <div className="space-y-4 max-w-md">
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Organization Name</label>
-                      <Input defaultValue="Acme Corporation" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Default Environment</label>
-                      <Input defaultValue="Production" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Timezone</label>
-                      <Input defaultValue="UTC" />
-                    </div>
-                    <Button size="sm">Save Changes</Button>
-                  </div>
-                </div>
-
-                <div className="premium-card p-5">
-                  <div className="text-sm font-semibold text-foreground mb-1">Data Retention</div>
-                  <div className="text-xs text-muted-foreground mb-4">Configure how long HealthMesh retains metric and event data.</div>
-                  <div className="space-y-3 max-w-md">
-                    {[
-                      { label: "Raw Metrics", value: "30 days" },
-                      { label: "Aggregated Metrics", value: "1 year" },
-                      { label: "Events & Logs", value: "90 days" },
-                      { label: "Incident History", value: "Unlimited" },
-                    ].map(item => (
-                      <div key={item.label} className="flex items-center justify-between py-2 border-b border-border/40 last:border-0">
-                        <span className="text-sm text-foreground">{item.label}</span>
-                        <Badge variant="secondary" size="sm">{item.value}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+              >
+                {SECTION_CONTENT[activeSection]}
               </motion.div>
-            )}
-
-            {activeSection === "appearance" && (
-              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="premium-card p-5 space-y-5">
-                  <div className="text-sm font-semibold text-foreground mb-4">Theme</div>
-                  <div className="grid grid-cols-2 gap-4 max-w-lg">
-                    <button
-                      onClick={() => setTheme("ivory")}
-                      className={cn(
-                        "relative rounded-xl border-2 overflow-hidden transition-all duration-200 cursor-pointer",
-                        theme === "ivory" ? "border-primary shadow-lg shadow-primary/20" : "border-border/60 hover:border-border"
-                      )}
-                    >
-                      <div className="h-28 bg-gradient-to-br from-stone-50 to-stone-100 flex items-end p-3">
-                        <div className="space-y-1 w-full">
-                          <div className="h-2 w-16 rounded bg-stone-300" />
-                          <div className="h-1.5 w-24 rounded bg-stone-200" />
-                        </div>
-                      </div>
-                      <div className="px-3 py-2 bg-white border-t border-stone-100">
-                        <div className="text-xs font-semibold text-stone-900">Ivory</div>
-                        <div className="text-[10px] text-stone-500">Premium light theme</div>
-                      </div>
-                      {theme === "ivory" && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                          <span className="text-white text-[10px]">✓</span>
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setTheme("green")}
-                      className={cn(
-                        "relative rounded-xl border-2 overflow-hidden transition-all duration-200 cursor-pointer",
-                        theme === "green" ? "border-primary shadow-lg shadow-primary/20" : "border-border/60 hover:border-border"
-                      )}
-                    >
-                      <div className="h-28 bg-gradient-to-br from-slate-950 to-slate-900 flex items-end p-3">
-                        <div className="space-y-1 w-full">
-                          <div className="h-2 w-16 rounded bg-emerald-500/40" />
-                          <div className="h-1.5 w-24 rounded bg-slate-700" />
-                        </div>
-                      </div>
-                      <div className="px-3 py-2 bg-slate-900 border-t border-slate-800">
-                        <div className="text-xs font-semibold text-white">Green</div>
-                        <div className="text-[10px] text-slate-400">Observability dark theme</div>
-                      </div>
-                      {theme === "green" && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                          <span className="text-primary-foreground text-[10px]">✓</span>
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {(activeSection === "notifications" || activeSection === "security" || activeSection === "api" || activeSection === "data") && (
-              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="premium-card p-8 text-center text-muted-foreground text-sm">
-                  {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} settings coming soon.
-                </div>
-              </motion.div>
-            )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
