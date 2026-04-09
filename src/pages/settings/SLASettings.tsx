@@ -4,23 +4,55 @@ import { Plus, CreditCard as Edit2, Target, TrendingUp, TrendingDown, TriangleAl
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listSLASettings, type SLASetting as ApiSLA } from "@/lib/api/misc"
 
-const SLO_TARGETS = [
-  { id: "slo-001", name: "API Availability", app: "api-gateway", metric: "availability", target: 99.95, current: 99.97, window: "30d", owner: "Platform", status: "on-track" as const },
-  { id: "slo-002", name: "Payment Success Rate", app: "payments-api", metric: "success_rate", target: 99.9, current: 99.94, window: "7d", owner: "Payments", status: "on-track" as const },
-  { id: "slo-003", name: "Search Latency P99", app: "search-api", metric: "p99_latency", target: 200, current: 312, window: "24h", owner: "Discovery", status: "breached" as const },
-  { id: "slo-004", name: "Auth Response Time", app: "auth-service", metric: "p95_latency", target: 100, current: 84, window: "24h", owner: "Identity", status: "on-track" as const },
-  { id: "slo-005", name: "Catalog Error Rate", app: "catalog-service", metric: "error_rate", target: 0.1, current: 0.05, window: "7d", owner: "Commerce", status: "on-track" as const },
-  { id: "slo-006", name: "ML Inference Latency", app: "model-server", metric: "p95_latency", target: 150, current: 148, window: "24h", owner: "ML", status: "at-risk" as const },
+type SLOStatus = "on-track" | "at-risk" | "breached"
+type SLOEntry = { id: string; name: string; app: string; metric: string; target: number; current: number; window: string; owner: string; status: SLOStatus }
+type BudgetEntry = { app: string; budget: number; consumed: number; percent: number; breached?: boolean }
+
+const STATIC_SLO_TARGETS: SLOEntry[] = [
+  { id: "slo-001", name: "API Availability", app: "api-gateway", metric: "availability", target: 99.95, current: 99.97, window: "30d", owner: "Platform", status: "on-track" },
+  { id: "slo-002", name: "Payment Success Rate", app: "payments-api", metric: "success_rate", target: 99.9, current: 99.94, window: "7d", owner: "Payments", status: "on-track" },
+  { id: "slo-003", name: "Search Latency P99", app: "search-api", metric: "p99_latency", target: 200, current: 312, window: "24h", owner: "Discovery", status: "breached" },
+  { id: "slo-004", name: "Auth Response Time", app: "auth-service", metric: "p95_latency", target: 100, current: 84, window: "24h", owner: "Identity", status: "on-track" },
+  { id: "slo-005", name: "Catalog Error Rate", app: "catalog-service", metric: "error_rate", target: 0.1, current: 0.05, window: "7d", owner: "Commerce", status: "on-track" },
+  { id: "slo-006", name: "ML Inference Latency", app: "model-server", metric: "p95_latency", target: 150, current: 148, window: "24h", owner: "ML", status: "at-risk" },
 ]
 
-const ERROR_BUDGETS = [
+const STATIC_ERROR_BUDGETS: BudgetEntry[] = [
   { app: "api-gateway", budget: 0.05, consumed: 0.012, percent: 24 },
   { app: "payments-api", budget: 0.1, consumed: 0.031, percent: 31 },
   { app: "search-api", budget: 0.1, consumed: 0.18, percent: 180, breached: true },
   { app: "auth-service", budget: 0.05, consumed: 0.008, percent: 16 },
   { app: "catalog-service", budget: 0.1, consumed: 0.019, percent: 19 },
 ]
+
+function apiToSLO(s: ApiSLA): SLOEntry {
+  const statusMap: Record<string, SLOStatus> = {
+    "on-track": "on-track", "on_track": "on-track", "at-risk": "at-risk", "at_risk": "at-risk",
+    "breached": "breached", "ok": "on-track", "warn": "at-risk", "crit": "breached",
+  }
+  return {
+    id: s.id,
+    name: s.name,
+    app: s.app_id,
+    metric: "availability",
+    target: s.target_pct,
+    current: s.current_pct,
+    window: s.period || "30d",
+    owner: "—",
+    status: statusMap[s.status?.toLowerCase() || ""] || "on-track",
+  }
+}
+
+function apiToBudget(s: ApiSLA): BudgetEntry {
+  const remaining = s.error_budget_remaining ?? 0
+  const budget = 100 - s.target_pct
+  const consumed = budget - remaining
+  const pct = budget > 0 ? Math.round((consumed / budget) * 100) : 0
+  return { app: s.app_id, budget, consumed, percent: pct, breached: pct > 100 }
+}
 
 const STATUS_STYLE = {
   "on-track": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
@@ -30,6 +62,10 @@ const STATUS_STYLE = {
 
 export function SLASettings() {
   const [activeView, setActiveView] = useState<"slos" | "budgets">("slos")
+
+  const { data: apiSLA } = useApi(listSLASettings, [])
+  const SLO_TARGETS: SLOEntry[] = apiSLA && apiSLA.length > 0 ? apiSLA.map(apiToSLO) : STATIC_SLO_TARGETS
+  const ERROR_BUDGETS: BudgetEntry[] = apiSLA && apiSLA.length > 0 ? apiSLA.map(apiToBudget) : STATIC_ERROR_BUDGETS
 
   return (
     <div className="space-y-5">

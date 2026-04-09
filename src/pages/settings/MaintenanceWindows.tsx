@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listMaintenanceWindows, type MaintenanceWindow as ApiMW } from "@/lib/api/misc"
 
 type MWStatus = "upcoming" | "active" | "completed" | "cancelled"
 
@@ -15,17 +17,41 @@ const STATUS_STYLE: Record<MWStatus, string> = {
   cancelled: "bg-red-500/10 text-red-500 border-red-500/20",
 }
 
-const WINDOWS = [
-  { id: "mw-001", name: "DB Primary Failover Test", apps: ["payments-api", "db-primary"], env: "production", start: "2026-04-10 02:00", end: "2026-04-10 04:00", status: "upcoming" as const, owner: "Platform Team", suppressAlerts: true, description: "Scheduled failover test for primary DB cluster" },
-  { id: "mw-002", name: "Search API v2.4 Deployment", apps: ["search-api", "indexer"], env: "production", start: "2026-04-09 22:00", end: "2026-04-10 00:00", status: "active" as const, owner: "Discovery Team", suppressAlerts: true, description: "Rolling deployment of search-api v2.4 with zero-downtime strategy" },
-  { id: "mw-003", name: "Auth Service Certificate Rotation", apps: ["auth-service"], env: "production", start: "2026-04-08 03:00", end: "2026-04-08 03:30", status: "completed" as const, owner: "Identity Team", suppressAlerts: true, description: "TLS certificate rotation for auth-service" },
-  { id: "mw-004", name: "Kafka Cluster Upgrade", apps: ["event-bus", "kafka"], env: "staging", start: "2026-04-07 10:00", end: "2026-04-07 14:00", status: "completed" as const, owner: "Platform Team", suppressAlerts: false, description: "Kafka 3.5 upgrade in staging" },
-  { id: "mw-005", name: "Redis Cluster Scale-up", apps: ["redis-cluster", "cache"], env: "production", start: "2026-04-12 01:00", end: "2026-04-12 03:00", status: "upcoming" as const, owner: "Data Platform", suppressAlerts: true, description: "Scaling redis-cluster from 3 to 5 nodes for peak season" },
+type WindowEntry = { id: string; name: string; apps: string[]; env: string; start: string; end: string; status: MWStatus; owner: string; suppressAlerts: boolean; description: string }
+
+const STATIC_WINDOWS: WindowEntry[] = [
+  { id: "mw-001", name: "DB Primary Failover Test", apps: ["payments-api", "db-primary"], env: "production", start: "2026-04-10 02:00", end: "2026-04-10 04:00", status: "upcoming", owner: "Platform Team", suppressAlerts: true, description: "Scheduled failover test for primary DB cluster" },
+  { id: "mw-002", name: "Search API v2.4 Deployment", apps: ["search-api", "indexer"], env: "production", start: "2026-04-09 22:00", end: "2026-04-10 00:00", status: "active", owner: "Discovery Team", suppressAlerts: true, description: "Rolling deployment of search-api v2.4 with zero-downtime strategy" },
+  { id: "mw-003", name: "Auth Service Certificate Rotation", apps: ["auth-service"], env: "production", start: "2026-04-08 03:00", end: "2026-04-08 03:30", status: "completed", owner: "Identity Team", suppressAlerts: true, description: "TLS certificate rotation for auth-service" },
+  { id: "mw-004", name: "Kafka Cluster Upgrade", apps: ["event-bus", "kafka"], env: "staging", start: "2026-04-07 10:00", end: "2026-04-07 14:00", status: "completed", owner: "Platform Team", suppressAlerts: false, description: "Kafka 3.5 upgrade in staging" },
+  { id: "mw-005", name: "Redis Cluster Scale-up", apps: ["redis-cluster", "cache"], env: "production", start: "2026-04-12 01:00", end: "2026-04-12 03:00", status: "upcoming", owner: "Data Platform", suppressAlerts: true, description: "Scaling redis-cluster from 3 to 5 nodes for peak season" },
 ]
+
+function apiToWindow(w: ApiMW): WindowEntry {
+  const statusMap: Record<string, MWStatus> = {
+    upcoming: "upcoming", active: "active", completed: "completed", cancelled: "cancelled",
+    scheduled: "upcoming", in_progress: "active", done: "completed",
+  }
+  return {
+    id: w.id,
+    name: w.title,
+    apps: w.affected_apps || [],
+    env: "production",
+    start: w.start_time ? w.start_time.replace("T", " ").slice(0, 16) : "",
+    end: w.end_time ? w.end_time.replace("T", " ").slice(0, 16) : "",
+    status: statusMap[w.status?.toLowerCase() || ""] || "upcoming",
+    owner: w.created_by || "System",
+    suppressAlerts: true,
+    description: w.description || "",
+  }
+}
 
 export function MaintenanceWindows() {
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState<MWStatus | "all">("all")
+
+  const { data: apiWindows } = useApi(listMaintenanceWindows, [])
+  const WINDOWS: WindowEntry[] = apiWindows && apiWindows.length > 0 ? apiWindows.map(apiToWindow) : STATIC_WINDOWS
 
   const filtered = filter === "all" ? WINDOWS : WINDOWS.filter(w => w.status === filter)
 

@@ -4,6 +4,8 @@ import { Search, Download, Filter, ShieldCheck, Settings, Users, Key, Plug, Tria
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listAuditLogs, type AuditLog as ApiAuditLog } from "@/lib/api/misc"
 
 type LogCategory = "auth" | "config" | "user" | "api" | "connector" | "rule"
 type LogSeverity = "low" | "medium" | "high"
@@ -17,18 +19,39 @@ const CATEGORY_META: Record<LogCategory, { icon: React.ComponentType<{ className
   rule: { icon: AlertTriangle, color: "text-red-500", label: "Rule" },
 }
 
-const LOGS = [
-  { id: "log-001", category: "config" as LogCategory, action: "Health rule threshold updated", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 14:32:18", target: "search-latency-rule", severity: "medium" as LogSeverity },
-  { id: "log-002", category: "auth" as LogCategory, action: "Admin login successful", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 14:28:04", target: "platform", severity: "low" as LogSeverity },
-  { id: "log-003", category: "connector" as LogCategory, action: "Connector disconnected", user: "System", ip: "internal", time: "2026-04-09 14:15:42", target: "pagerduty-prod", severity: "high" as LogSeverity },
-  { id: "log-004", category: "user" as LogCategory, action: "User role changed to Admin", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 13:44:22", target: "yuki.tanaka@acme.io", severity: "medium" as LogSeverity },
-  { id: "log-005", category: "api" as LogCategory, action: "API key created", user: "Tom Park", ip: "10.0.5.88", time: "2026-04-09 13:10:55", target: "catalog-service-key", severity: "medium" as LogSeverity },
-  { id: "log-006", category: "rule" as LogCategory, action: "Health rule activated", user: "Jake Moore", ip: "10.0.3.21", time: "2026-04-09 12:58:33", target: "search-api-error-rate", severity: "low" as LogSeverity },
-  { id: "log-007", category: "config" as LogCategory, action: "SLO target modified", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 12:42:10", target: "payments-success-rate", severity: "medium" as LogSeverity },
-  { id: "log-008", category: "auth" as LogCategory, action: "Failed login attempt", user: "unknown", ip: "203.45.67.89", time: "2026-04-09 12:31:02", target: "platform", severity: "high" as LogSeverity },
-  { id: "log-009", category: "connector" as LogCategory, action: "Connector configuration updated", user: "Sara Lee", ip: "192.168.1.55", time: "2026-04-09 11:58:19", target: "datadog-apm-prod", severity: "low" as LogSeverity },
-  { id: "log-010", category: "user" as LogCategory, action: "User invited to workspace", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 11:22:44", target: "new.engineer@acme.io", severity: "low" as LogSeverity },
+type LogEntry = { id: string; category: LogCategory; action: string; user: string; ip: string; time: string; target: string; severity: LogSeverity }
+
+const STATIC_LOGS: LogEntry[] = [
+  { id: "log-001", category: "config", action: "Health rule threshold updated", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 14:32:18", target: "search-latency-rule", severity: "medium" },
+  { id: "log-002", category: "auth", action: "Admin login successful", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 14:28:04", target: "platform", severity: "low" },
+  { id: "log-003", category: "connector", action: "Connector disconnected", user: "System", ip: "internal", time: "2026-04-09 14:15:42", target: "pagerduty-prod", severity: "high" },
+  { id: "log-004", category: "user", action: "User role changed to Admin", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 13:44:22", target: "yuki.tanaka@acme.io", severity: "medium" },
+  { id: "log-005", category: "api", action: "API key created", user: "Tom Park", ip: "10.0.5.88", time: "2026-04-09 13:10:55", target: "catalog-service-key", severity: "medium" },
+  { id: "log-006", category: "rule", action: "Health rule activated", user: "Jake Moore", ip: "10.0.3.21", time: "2026-04-09 12:58:33", target: "search-api-error-rate", severity: "low" },
+  { id: "log-007", category: "config", action: "SLO target modified", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 12:42:10", target: "payments-success-rate", severity: "medium" },
+  { id: "log-008", category: "auth", action: "Failed login attempt", user: "unknown", ip: "203.45.67.89", time: "2026-04-09 12:31:02", target: "platform", severity: "high" },
+  { id: "log-009", category: "connector", action: "Connector configuration updated", user: "Sara Lee", ip: "192.168.1.55", time: "2026-04-09 11:58:19", target: "datadog-apm-prod", severity: "low" },
+  { id: "log-010", category: "user", action: "User invited to workspace", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 11:22:44", target: "new.engineer@acme.io", severity: "low" },
 ]
+
+function apiToLog(l: ApiAuditLog): LogEntry {
+  const catMap: Record<string, LogCategory> = {
+    auth: "auth", config: "config", user: "user", api: "api", connector: "connector", rule: "rule",
+    rule_change: "rule", connector_change: "connector", user_change: "user",
+  }
+  const sevMap: Record<string, LogSeverity> = { low: "low", medium: "medium", high: "high" }
+  const cat = catMap[l.resource_type?.toLowerCase() || ""] || "config"
+  return {
+    id: String(l.id),
+    category: cat,
+    action: l.action,
+    user: l.user_name || l.user_email || "System",
+    ip: l.ip_address || "internal",
+    time: l.timestamp ? l.timestamp.replace("T", " ").slice(0, 19) : "",
+    target: l.resource_name || l.resource_id || "—",
+    severity: sevMap[l.details?.toLowerCase() || ""] || "low",
+  }
+}
 
 const SEVERITY_STYLE: Record<LogSeverity, string> = {
   low: "bg-muted text-muted-foreground",
@@ -39,6 +62,9 @@ const SEVERITY_STYLE: Record<LogSeverity, string> = {
 export function AuditLogs() {
   const [search, setSearch] = useState("")
   const [catFilter, setCatFilter] = useState<LogCategory | "all">("all")
+
+  const { data: apiLogs } = useApi(listAuditLogs, [])
+  const LOGS: LogEntry[] = apiLogs && apiLogs.length > 0 ? apiLogs.map(apiToLog) : STATIC_LOGS
 
   const filtered = LOGS.filter(l => {
     if (catFilter !== "all" && l.category !== catFilter) return false
@@ -120,7 +146,7 @@ export function AuditLogs() {
       </div>
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Showing {filtered.length} of {LOGS.length} entries</span>
+        <span>Showing {filtered.length} of {LOGS.length} entries{apiLogs && apiLogs.length > 0 ? " (live)" : ""}</span>
         <span>Retained for 90 days</span>
       </div>
     </div>
