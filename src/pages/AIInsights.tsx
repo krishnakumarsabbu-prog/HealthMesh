@@ -1,10 +1,12 @@
-import { motion } from "framer-motion"
-import { Sparkles, TrendingUp, TriangleAlert as AlertTriangle, Zap, Brain, ArrowUpRight, CircleCheck as CheckCircle2, Clock, RefreshCw } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useState } from "react"
+import { Sparkles, TrendingUp, TriangleAlert as AlertTriangle, Zap, Brain, ArrowUpRight, CircleCheck as CheckCircle, Clock, RefreshCw, Send, ChevronRight, GitBranch, Activity, Eye } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
+import { LineChart, Line, ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis } from "recharts"
 
 const INSIGHTS = [
   {
@@ -17,6 +19,8 @@ const INSIGHTS = [
     recommendation: "Investigate WAF logs and consider rate limiting for EU/DE subnet ranges. Alert the security team.",
     app: "search-api",
     age: "6m ago",
+    signals: ["request_rate +220%", "latency p99 +44%", "cache_miss stable"],
+    whatChanged: "Inbound request volume tripled from EU region between 14:31–14:38 with no matching user session growth.",
   },
   {
     type: "prediction",
@@ -28,6 +32,8 @@ const INSIGHTS = [
     recommendation: "Fix Redis connection leak in session refresh handler. Consider increasing pod memory limits as a temporary measure.",
     app: "auth-service",
     age: "12m ago",
+    signals: ["memory +2.4MB/min", "redis_conns +18%", "gc_pauses +40%"],
+    whatChanged: "Memory growth rate accelerated 2.8× after session management config update at 13:22.",
   },
   {
     type: "correlation",
@@ -39,17 +45,21 @@ const INSIGHTS = [
     recommendation: "Tune JVM GC settings on database-replica-2. Consider migrating recommendation reads to db-replica-3.",
     app: "recommendation-engine",
     age: "34m ago",
+    signals: ["latency p95 +28%", "gc_pause_ms +180ms", "db_replica_lag +12ms"],
+    whatChanged: "GC pause frequency on db-replica-2 increased 3× starting at 11:45. Correlates with latency spike (r=0.91).",
   },
   {
     type: "optimization",
     priority: "low",
-    title: "Catalog caching opportunity",
+    title: "Catalog caching opportunity identified",
     desc: "catalog-service product detail endpoints show 89% cache-hit ratio on hot SKUs, but 100 long-tail SKUs account for 34% of database reads. Adding a secondary cache tier could reduce DB load by ~28%.",
     confidence: 82,
     impact: "Low — Cost optimization opportunity",
     recommendation: "Implement an LRU secondary cache for long-tail SKUs with a 5-minute TTL. Estimated 28% DB read reduction.",
     app: "catalog-service",
     age: "1h ago",
+    signals: ["cache_miss 34% long-tail", "db_reads +28%", "response_time stable"],
+    whatChanged: "Long-tail cache misses have been trending upward since new product catalog expansion last week.",
   },
   {
     type: "capacity",
@@ -61,29 +71,74 @@ const INSIGHTS = [
     recommendation: "Increase connection pool size from 50 to 75. Consider PgBouncer for connection multiplexing.",
     app: "payments-api",
     age: "2h ago",
+    signals: ["conn_pool 78% avg", "peak_conn 94%", "query_wait +12ms"],
+    whatChanged: "Connection pool usage has grown 8% week-over-week for the past 3 weeks, driven by payment volume growth.",
   },
 ]
 
 const TYPE_META = {
-  anomaly: { label: "Anomaly", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
-  prediction: { label: "Prediction", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-  correlation: { label: "Correlation", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-  optimization: { label: "Optimization", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-  capacity: { label: "Capacity", color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+  anomaly: { label: "Anomaly", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", icon: <AlertTriangle className="w-4 h-4" /> },
+  prediction: { label: "Prediction", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", icon: <TrendingUp className="w-4 h-4" /> },
+  correlation: { label: "Correlation", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", icon: <GitBranch className="w-4 h-4" /> },
+  optimization: { label: "Optimization", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: <Zap className="w-4 h-4" /> },
+  capacity: { label: "Capacity", color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", icon: <Activity className="w-4 h-4" /> },
 }
 
-const CONFIDENCE_DATA = Array.from({ length: 12 }, (_, i) => ({
-  month: `M${i + 1}`,
-  accuracy: 72 + i * 2 + Math.random() * 4,
+const SUGGESTED_PROMPTS = [
+  "Why did search-api latency spike today?",
+  "Which apps are most at risk in the next 24h?",
+  "What changed in auth-service recently?",
+  "Show me anomalies affecting payments-api",
+  "What's driving the increase in error rates?",
+]
+
+const ACCURACY_DATA = Array.from({ length: 24 }, (_, i) => ({
+  h: `${i}h`,
+  accuracy: 88 + Math.sin(i * 0.3) * 4 + Math.random() * 2,
+  insights: Math.floor(3 + Math.random() * 8),
 }))
 
+const CHART_STYLE = {
+  contentStyle: {
+    background: "hsl(var(--card))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "8px",
+    fontSize: "11px",
+  }
+}
+
 export function AIInsights() {
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [priorityFilter, setPriorityFilter] = useState("all")
+  const [askInput, setAskInput] = useState("")
+  const [aiResponse, setAiResponse] = useState<string | null>(null)
+  const [isThinking, setIsThinking] = useState(false)
+  const [expandedInsight, setExpandedInsight] = useState<number | null>(null)
+
+  const filtered = INSIGHTS.filter(i => {
+    const matchType = typeFilter === "all" || i.type === typeFilter
+    const matchPriority = priorityFilter === "all" || i.priority === priorityFilter
+    return matchType && matchPriority
+  })
+
+  const handleAsk = (prompt?: string) => {
+    const q = prompt || askInput
+    if (!q.trim()) return
+    setAskInput(prompt || askInput)
+    setIsThinking(true)
+    setAiResponse(null)
+    setTimeout(() => {
+      setIsThinking(false)
+      setAiResponse(`Based on the last 2 hours of telemetry: The most significant change was a 3× increase in EU traffic to search-api at 14:31 UTC. This correlated with a P99 latency increase from 180ms to 2100ms. The root cause appears to be DB connection pool saturation on db-primary, compounded by an ongoing GC pause issue on db-replica-2. Recommendation: address the connection pool limit first, then investigate the source of EU traffic anomaly.`)
+    }, 1800)
+  }
+
   return (
     <div className="min-h-full">
       <PageHeader
         title="AI Insights"
-        description="Machine learning-powered anomaly detection, predictions, and root cause analysis"
-        badge={<Badge variant="secondary" size="sm"><Brain className="w-3 h-3 mr-1" />5 new insights</Badge>}
+        description="Machine learning-powered anomaly detection, predictions, root cause analysis, and operational intelligence"
+        badge={<Badge variant="secondary" size="sm"><Brain className="w-3 h-3 mr-1" />{filtered.length} insights</Badge>}
         actions={
           <Button variant="outline" size="sm" className="gap-2">
             <RefreshCw className="w-3.5 h-3.5" /> Re-analyze
@@ -95,10 +150,10 @@ export function AIInsights() {
         {/* Model stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Model Accuracy", value: "94.2%", sub: "Last 30 days", icon: <Brain className="w-4 h-4 text-primary" /> },
-            { label: "Insights Generated", value: "1,284", sub: "This month", icon: <Sparkles className="w-4 h-4 text-primary" /> },
-            { label: "Incidents Predicted", value: "47", sub: "Before they occurred", icon: <TrendingUp className="w-4 h-4 text-emerald-500" /> },
-            { label: "False Positives", value: "3.8%", sub: "Industry avg: 12%", icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
+            { label: "Model Accuracy", value: "94.2%", sub: "Last 30 days", icon: <Brain className="w-4 h-4 text-primary" />, trend: "+1.2%" },
+            { label: "Insights Generated", value: "1,284", sub: "This month", icon: <Sparkles className="w-4 h-4 text-primary" />, trend: "+18%" },
+            { label: "Incidents Predicted", value: "47", sub: "Before occurrence", icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, trend: "81% early" },
+            { label: "False Positives", value: "3.8%", sub: "Industry avg: 12%", icon: <CheckCircle className="w-4 h-4 text-emerald-500" />, trend: "−2.1%" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
               className="premium-card p-4 flex items-start gap-3">
@@ -107,78 +162,181 @@ export function AIInsights() {
                 <div className="text-lg font-bold text-foreground">{s.value}</div>
                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</div>
                 <div className="text-[10px] text-muted-foreground">{s.sub}</div>
+                <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">{s.trend}</div>
               </div>
             </motion.div>
           ))}
         </div>
 
+        {/* Ask AI panel */}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="premium-card p-5 border-primary/20">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+              <Brain className="w-3.5 h-3.5 text-primary" />
+            </div>
+            <div className="text-sm font-bold text-foreground">Ask AI</div>
+            <Badge variant="secondary" size="sm">GPT-4o powered</Badge>
+          </div>
+          <div className="flex gap-2 mb-3">
+            <Input value={askInput} onChange={e => setAskInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAsk()}
+              placeholder="Ask anything about your platform health, anomalies, or root causes…"
+              className="text-sm" />
+            <Button size="sm" className="gap-2 shrink-0" onClick={() => handleAsk()} disabled={isThinking}>
+              {isThinking ? <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Ask
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {SUGGESTED_PROMPTS.map(p => (
+              <button key={p} onClick={() => { setAskInput(p); handleAsk(p) }}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all">
+                {p}
+              </button>
+            ))}
+          </div>
+          <AnimatePresence>
+            {isThinking && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map(j => <motion.div key={j} className="w-1.5 h-1.5 rounded-full bg-primary"
+                    animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }} />)}
+                </div>
+                Analyzing telemetry across all services…
+              </motion.div>
+            )}
+            {aiResponse && !isThinking && (
+              <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl bg-primary/5 border border-primary/20 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-bold text-primary">AI Analysis</span>
+                </div>
+                <div className="text-sm text-foreground/80 leading-relaxed">{aiResponse}</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            {["all", "anomaly", "prediction", "correlation", "optimization", "capacity"].map(f => (
+              <button key={f} onClick={() => setTypeFilter(f)}
+                className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
+                  typeFilter === f ? "bg-primary/10 text-primary border-primary/30" : "border-border/60 text-muted-foreground hover:border-border"
+                )}>{f}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {["all", "high", "medium", "low"].map(f => (
+              <button key={f} onClick={() => setPriorityFilter(f)}
+                className={cn("px-2.5 py-1.5 text-[11px] font-medium rounded-full border transition-all capitalize",
+                  priorityFilter === f ? "bg-foreground/8 text-foreground border-foreground/20" : "border-border/60 text-muted-foreground hover:border-border"
+                )}>{f}</button>
+            ))}
+          </div>
+        </div>
+
         {/* Insights list */}
-        <div className="space-y-4">
-          {INSIGHTS.map((insight, i) => {
+        <div className="space-y-3">
+          {filtered.map((insight, i) => {
             const meta = TYPE_META[insight.type as keyof typeof TYPE_META]
+            const isExpanded = expandedInsight === i
             return (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.07 }}
-                className="premium-card p-5 group cursor-pointer hover:border-primary/20 transition-all"
-              >
-                <div className="flex items-start gap-4">
-                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", meta.bg)}>
-                    <Sparkles className={cn("w-4 h-4", meta.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", meta.bg, meta.color, meta.border)}>
-                        {meta.label}
-                      </span>
-                      <span className="text-xs font-mono text-muted-foreground">{insight.app}</span>
-                      <span className={cn(
-                        "text-xs font-semibold px-2 py-0.5 rounded-full",
-                        insight.priority === "high" ? "bg-red-500/10 text-red-500" :
-                        insight.priority === "medium" ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
-                      )}>
-                        {insight.priority.toUpperCase()}
-                      </span>
-                      <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {insight.age}
-                      </span>
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.06 }}
+                className="premium-card group cursor-pointer hover:border-primary/20 transition-all overflow-hidden"
+                onClick={() => setExpandedInsight(isExpanded ? null : i)}>
+                <div className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", meta.bg, meta.color)}>
+                      {meta.icon}
                     </div>
-
-                    <div className="text-sm font-semibold text-foreground mb-2">{insight.title}</div>
-                    <div className="text-xs text-muted-foreground leading-relaxed mb-3">{insight.desc}</div>
-
-                    <div className="rounded-lg bg-primary/5 border border-primary/15 p-3 mb-3">
-                      <div className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Recommendation</div>
-                      <div className="text-xs text-foreground/80">{insight.recommendation}</div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Confidence:</span>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${insight.confidence}%` }}
-                              transition={{ delay: 0.3 + i * 0.07, duration: 0.5 }}
-                              className={cn("h-full rounded-full", insight.confidence >= 90 ? "bg-emerald-500" : insight.confidence >= 80 ? "bg-amber-500" : "bg-muted-foreground")}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold text-foreground">{insight.confidence}%</span>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", meta.bg, meta.color, meta.border)}>{meta.label}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{insight.app}</span>
+                        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full",
+                          insight.priority === "high" ? "bg-red-500/10 text-red-500" :
+                          insight.priority === "medium" ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
+                        )}>{insight.priority.toUpperCase()}</span>
+                        <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                          <Clock className="w-3 h-3" /> {insight.age}
+                        </span>
                       </div>
-                      <Button variant="ghost" size="sm" className="text-xs gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-primary">
-                        View details <ArrowUpRight className="w-3 h-3" />
-                      </Button>
+                      <div className="text-sm font-semibold text-foreground mb-1.5">{insight.title}</div>
+                      <div className="text-xs text-muted-foreground leading-relaxed mb-3">{insight.desc}</div>
+
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {insight.signals.map(s => (
+                          <span key={s} className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground">{s}</span>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Confidence:</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${insight.confidence}%` }}
+                                transition={{ delay: 0.3 + i * 0.07, duration: 0.6 }}
+                                className={cn("h-full rounded-full", insight.confidence >= 90 ? "bg-emerald-500" : insight.confidence >= 80 ? "bg-amber-500" : "bg-muted-foreground")} />
+                            </div>
+                            <span className="text-xs font-semibold text-foreground">{insight.confidence}%</span>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" className="text-xs gap-1 text-primary">
+                          {isExpanded ? "Collapse" : "View Analysis"} <ArrowUpRight className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-border/60 overflow-hidden">
+                      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">What Changed</div>
+                          <div className="text-xs text-foreground/80 leading-relaxed rounded-xl bg-muted/20 border border-border/60 p-3">
+                            {insight.whatChanged}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recommendation</div>
+                          <div className="rounded-xl bg-primary/5 border border-primary/20 p-3">
+                            <div className="text-xs text-foreground/80 leading-relaxed">{insight.recommendation}</div>
+                          </div>
+                          <div className="mt-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Impact</div>
+                          <div className="text-xs text-muted-foreground">{insight.impact}</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )
           })}
         </div>
+
+        {/* Model confidence chart */}
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+          className="premium-card p-5">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">AI Model Confidence — Last 24h</div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={ACCURACY_DATA} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+              <XAxis dataKey="h" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={5} />
+              <YAxis domain={[80, 100]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <Tooltip {...CHART_STYLE} />
+              <Line type="monotone" dataKey="accuracy" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Accuracy %" />
+            </LineChart>
+          </ResponsiveContainer>
+        </motion.div>
       </div>
     </div>
   )
