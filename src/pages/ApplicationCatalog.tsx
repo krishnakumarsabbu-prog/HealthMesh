@@ -1,186 +1,586 @@
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { Search, Filter, Server, ArrowUpRight, Plus, SlidersHorizontal, Grid3x3, List } from "lucide-react"
+import { useState, useMemo } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Search, Server, ArrowUpRight, Plus, Grid3x3, List, Star, StarOff, X, ChevronRight, Activity, Zap, TriangleAlert as AlertTriangle, Clock, Users, Link2, Filter, SlidersHorizontal, Eye, Tag, TrendingUp, TrendingDown, CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Layers } from "lucide-react"
+import { AreaChart, Area, ResponsiveContainer } from "recharts"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
-const APPS = [
-  { name: "payments-api", team: "Payments", env: "Production", status: "healthy" as const, uptime: "99.98%", latency: "42ms", rpm: "12.4K", type: "API", tags: ["critical", "pci"] },
-  { name: "auth-service", team: "Platform", env: "Production", status: "warning" as const, uptime: "99.82%", latency: "87ms", rpm: "34.1K", type: "Service", tags: ["critical"] },
-  { name: "catalog-service", team: "Commerce", env: "Production", status: "healthy" as const, uptime: "99.99%", latency: "31ms", rpm: "8.7K", type: "API", tags: ["core"] },
-  { name: "recommendation-engine", team: "ML", env: "Production", status: "degraded" as const, uptime: "98.41%", latency: "234ms", rpm: "2.1K", type: "ML Service", tags: ["ai"] },
-  { name: "notification-worker", team: "Platform", env: "Production", status: "healthy" as const, uptime: "99.95%", latency: "18ms", rpm: "5.6K", type: "Worker", tags: ["async"] },
-  { name: "search-api", team: "Discovery", env: "Production", status: "critical" as const, uptime: "96.20%", latency: "2140ms", rpm: "6.3K", type: "API", tags: ["critical"] },
-  { name: "inventory-service", team: "Commerce", env: "Production", status: "healthy" as const, uptime: "99.97%", latency: "55ms", rpm: "3.2K", type: "Service", tags: ["core"] },
-  { name: "shipping-calculator", team: "Logistics", env: "Production", status: "healthy" as const, uptime: "99.94%", latency: "67ms", rpm: "1.8K", type: "Service", tags: [] },
-  { name: "fraud-detection", team: "Risk", env: "Production", status: "healthy" as const, uptime: "99.99%", latency: "28ms", rpm: "11.2K", type: "ML Service", tags: ["critical", "ai"] },
-  { name: "reporting-service", team: "Analytics", env: "Production", status: "healthy" as const, uptime: "99.87%", latency: "145ms", rpm: "420", type: "Service", tags: [] },
-  { name: "media-processor", team: "Content", env: "Production", status: "healthy" as const, uptime: "99.91%", latency: "380ms", rpm: "890", type: "Worker", tags: ["async"] },
-  { name: "webhook-gateway", team: "Platform", env: "Production", status: "healthy" as const, uptime: "99.96%", latency: "22ms", rpm: "7.4K", type: "Gateway", tags: ["core"] },
+type AppStatus = "healthy" | "warning" | "critical" | "degraded" | "unknown"
+type Criticality = "P0" | "P1" | "P2" | "P3"
+
+interface AppEntry {
+  name: string; team: string; env: string; status: AppStatus
+  criticality: Criticality; score: number; uptime: string
+  latency: string; rpm: string; type: string; tags: string[]
+  incidents: number; deps: number; connectors: string[]
+  lastIncident: string; lastRefresh: string; failingChecks: number
+  trend: number[]; description: string
+}
+
+const APPS: AppEntry[] = [
+  { name: "payments-api", team: "Payments", env: "Production", status: "healthy", criticality: "P0", score: 98, uptime: "99.98%", latency: "42ms", rpm: "12.4K", type: "REST API", tags: ["pci", "critical", "external"], incidents: 0, deps: 8, connectors: ["Datadog", "PagerDuty"], lastIncident: "18d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [96, 98, 97, 99, 98, 98, 97, 98, 99, 98, 98, 98], description: "Core payment processing API handling all transaction flows including checkout, refunds, and chargebacks." },
+  { name: "customer-auth-service", team: "Platform", env: "Production", status: "warning", criticality: "P0", score: 72, uptime: "99.82%", latency: "87ms", rpm: "34.1K", type: "gRPC Service", tags: ["critical", "identity"], incidents: 1, deps: 5, connectors: ["Datadog", "Grafana"], lastIncident: "1h ago", lastRefresh: "30s ago", failingChecks: 3, trend: [90, 88, 85, 82, 79, 76, 74, 72, 73, 71, 72, 72], description: "Handles all user authentication, session management, and OAuth token issuance across all products." },
+  { name: "order-processing-gateway", team: "Commerce", env: "Production", status: "healthy", criticality: "P0", score: 95, uptime: "99.99%", latency: "55ms", rpm: "8.7K", type: "GraphQL API", tags: ["core", "commerce"], incidents: 0, deps: 12, connectors: ["AWS CloudWatch", "Datadog"], lastIncident: "3d ago", lastRefresh: "45s ago", failingChecks: 0, trend: [93, 94, 95, 94, 96, 95, 95, 96, 95, 95, 95, 95], description: "Orchestrates the full order lifecycle from cart checkout through fulfillment and delivery tracking." },
+  { name: "search-api", team: "Discovery", env: "Production", status: "critical", criticality: "P1", score: 31, uptime: "96.20%", latency: "2140ms", rpm: "6.3K", type: "REST API", tags: ["critical", "customer-facing"], incidents: 3, deps: 6, connectors: ["Prometheus", "Datadog"], lastIncident: "14m ago", lastRefresh: "30s ago", failingChecks: 8, trend: [85, 80, 72, 60, 52, 42, 38, 35, 32, 31, 31, 31], description: "Powers product search, autocomplete, and relevance-ranked results across all surfaces and storefronts." },
+  { name: "recommendation-engine", team: "ML", env: "Production", status: "degraded", criticality: "P1", score: 58, uptime: "98.41%", latency: "234ms", rpm: "2.1K", type: "ML Service", tags: ["ai", "personalization"], incidents: 2, deps: 9, connectors: ["Grafana", "AWS CloudWatch"], lastIncident: "3h ago", lastRefresh: "1m ago", failingChecks: 4, trend: [80, 78, 75, 70, 66, 62, 59, 58, 57, 58, 58, 58], description: "Real-time product recommendation inference service powered by collaborative filtering and deep learning." },
+  { name: "notification-engine", team: "Platform", env: "Production", status: "healthy", criticality: "P1", score: 97, uptime: "99.95%", latency: "18ms", rpm: "5.6K", type: "Worker", tags: ["async", "messaging"], incidents: 0, deps: 4, connectors: ["Datadog", "PagerDuty"], lastIncident: "7d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [95, 96, 97, 97, 96, 97, 98, 97, 97, 97, 97, 97], description: "Manages email, SMS, push notification delivery with templating, queuing, and delivery tracking." },
+  { name: "inventory-service", team: "Commerce", env: "Production", status: "healthy", criticality: "P1", score: 94, uptime: "99.97%", latency: "65ms", rpm: "3.2K", type: "REST API", tags: ["core", "commerce"], incidents: 0, deps: 3, connectors: ["Datadog"], lastIncident: "12d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [92, 93, 94, 93, 94, 95, 94, 94, 93, 94, 94, 94], description: "Real-time inventory tracking, reservation management, and warehouse sync across all fulfillment centers." },
+  { name: "claims-portal-api", team: "Insurance", env: "Production", status: "healthy", criticality: "P0", score: 99, uptime: "99.99%", latency: "38ms", rpm: "1.8K", type: "REST API", tags: ["regulated", "hipaa"], incidents: 0, deps: 7, connectors: ["Splunk", "Datadog"], lastIncident: "30d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99], description: "HIPAA-compliant claims submission, adjudication status, and appeal management API for the Claims Portal." },
+  { name: "fraud-detection-service", team: "Risk", env: "Production", status: "healthy", criticality: "P0", score: 99, uptime: "99.99%", latency: "28ms", rpm: "11.2K", type: "ML Service", tags: ["critical", "ai", "pci"], incidents: 0, deps: 5, connectors: ["Datadog", "Splunk"], lastIncident: "45d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99], description: "Real-time fraud scoring and transaction risk assessment using ensemble ML models trained on behavior signals." },
+  { name: "reporting-hub", team: "Analytics", env: "Production", status: "healthy", criticality: "P2", score: 87, uptime: "99.87%", latency: "145ms", rpm: "420", type: "Service", tags: ["internal"], incidents: 0, deps: 6, connectors: ["Grafana"], lastIncident: "4d ago", lastRefresh: "2m ago", failingChecks: 1, trend: [85, 86, 87, 86, 87, 88, 87, 87, 87, 87, 87, 87], description: "Business intelligence report generation, scheduling, and export service for executive dashboards." },
+  { name: "identity-service", team: "Platform", env: "Production", status: "healthy", criticality: "P0", score: 96, uptime: "99.96%", latency: "34ms", rpm: "22.1K", type: "gRPC Service", tags: ["identity", "critical"], incidents: 0, deps: 4, connectors: ["Datadog", "PagerDuty"], lastIncident: "8d ago", lastRefresh: "30s ago", failingChecks: 0, trend: [94, 95, 96, 95, 96, 97, 96, 96, 95, 96, 96, 96], description: "Centralized identity graph, user profile management, and permission system used by all platform services." },
+  { name: "customer-360-platform", team: "CX", env: "Production", status: "healthy", criticality: "P1", score: 92, uptime: "99.93%", latency: "78ms", rpm: "3.4K", type: "GraphQL API", tags: ["customer-data", "analytics"], incidents: 0, deps: 14, connectors: ["Datadog", "Grafana"], lastIncident: "6d ago", lastRefresh: "45s ago", failingChecks: 0, trend: [90, 91, 92, 91, 92, 93, 92, 92, 91, 92, 92, 92], description: "Aggregated customer profile, behavioral analytics, and segment management API powering personalization." },
 ]
+
+const CRITICALITY_ORDER: Record<Criticality, number> = { P0: 0, P1: 1, P2: 2, P3: 3 }
+const STATUS_ORDER: Record<AppStatus, number> = { critical: 0, degraded: 1, warning: 2, unknown: 3, healthy: 4 }
+
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  const d = data.map((v, i) => ({ i, v }))
+  return (
+    <ResponsiveContainer width={60} height={24}>
+      <AreaChart data={d} margin={{ top: 1, right: 0, bottom: 1, left: 0 }}>
+        <defs>
+          <linearGradient id={`msp-${color.replace(/[^a-z]/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5}
+          fill={`url(#msp-${color.replace(/[^a-z]/g, "")})`} dot={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+function AppDrawer({ app, onClose }: { app: AppEntry; onClose: () => void }) {
+  const scoreColor = app.score >= 90 ? "#10b981" : app.score >= 70 ? "#f59e0b" : "#ef4444"
+  const r = 32, circ = 2 * Math.PI * r, filled = (app.score / 100) * circ
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 40 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+      className="fixed top-0 right-0 h-full w-[420px] z-50 bg-card border-l border-border/60 shadow-premium flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex items-start gap-3 px-5 py-4 border-b border-border/60">
+        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+          app.status === "critical" ? "bg-red-500/10" :
+          app.status === "warning" ? "bg-amber-500/10" :
+          app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+        )}>
+          <Server className={cn("w-5 h-5",
+            app.status === "critical" ? "text-red-500" :
+            app.status === "warning" ? "text-amber-500" :
+            app.status === "degraded" ? "text-orange-500" : "text-primary"
+          )} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-sm font-mono text-foreground truncate">{app.name}</div>
+          <div className="text-xs text-muted-foreground">{app.team} · {app.type}</div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={app.status} size="sm" />
+          <Button variant="ghost" size="icon-sm" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="px-5 py-4 space-y-4">
+          {/* Score + quick stats */}
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+              <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
+                <circle cx="40" cy="40" r={r} strokeWidth="7" stroke="hsl(var(--border))" fill="none" />
+                <motion.circle cx="40" cy="40" r={r} strokeWidth="7"
+                  stroke={scoreColor} fill="none" strokeLinecap="round"
+                  strokeDasharray={circ}
+                  initial={{ strokeDashoffset: circ }}
+                  animate={{ strokeDashoffset: circ - filled }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-lg font-bold leading-none" style={{ color: scoreColor }}>{app.score}</span>
+                <span className="text-[8px] text-muted-foreground">score</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: "Uptime", value: app.uptime },
+                { label: "Latency", value: app.latency },
+                { label: "RPM", value: app.rpm },
+                { label: "Failing Checks", value: app.failingChecks === 0 ? "None" : String(app.failingChecks) },
+              ].map(s => (
+                <div key={s.label} className="rounded-lg bg-muted/50 px-2.5 py-2">
+                  <div className="text-xs font-semibold font-mono text-foreground">{s.value}</div>
+                  <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="rounded-xl bg-muted/30 border border-border/40 p-3">
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">About</div>
+            <p className="text-xs text-foreground/80 leading-relaxed">{app.description}</p>
+          </div>
+
+          {/* 12h trend */}
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Health Score — 12h Trend</div>
+            <ResponsiveContainer width="100%" height={60}>
+              <AreaChart data={app.trend.map((v, i) => ({ i, v }))} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
+                <defs>
+                  <linearGradient id="drawerGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={scoreColor} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={scoreColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="v" stroke={scoreColor} strokeWidth={2} fill="url(#drawerGrad)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Details grid */}
+          <div className="space-y-1.5">
+            {[
+              { label: "Criticality", value: app.criticality },
+              { label: "Environment", value: app.env },
+              { label: "Dependencies", value: `${app.deps} services` },
+              { label: "Connectors", value: app.connectors.join(", ") },
+              { label: "Last Incident", value: app.lastIncident },
+              { label: "Last Refresh", value: app.lastRefresh },
+            ].map(d => (
+              <div key={d.label} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+                <span className="text-xs text-muted-foreground">{d.label}</span>
+                <span className="text-xs font-semibold text-foreground">{d.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tags */}
+          {app.tags.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</div>
+              <div className="flex flex-wrap gap-1.5">
+                {app.tags.map(t => (
+                  <span key={t} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted border border-border/60 text-muted-foreground">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Incidents */}
+          <div>
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Open Incidents</div>
+            {app.incidents > 0 ? (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-500/8 border border-red-500/15">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <span className="text-xs text-red-600 dark:text-red-400 font-semibold">{app.incidents} active incident{app.incidents > 1 ? "s" : ""}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">No active incidents</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+
+      {/* Footer actions */}
+      <div className="flex gap-2 px-5 py-4 border-t border-border/60">
+        <Button size="sm" className="flex-1 gap-1.5 text-xs">
+          <ArrowUpRight className="w-3.5 h-3.5" /> Open 360° View
+        </Button>
+        <Button variant="outline" size="sm" className="text-xs">
+          Incidents
+        </Button>
+      </div>
+    </motion.div>
+  )
+}
 
 export function ApplicationCatalog() {
   const [search, setSearch] = useState("")
-  const [view, setView] = useState<"grid" | "list">("list")
-  const [filter, setFilter] = useState<string>("all")
+  const [view, setView] = useState<"list" | "grid">("list")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [critFilter, setCritFilter] = useState("all")
+  const [teamFilter, setTeamFilter] = useState("all")
+  const [sortBy, setSortBy] = useState<"criticality" | "score" | "latency" | "incidents">("criticality")
+  const [favorites, setFavorites] = useState<Set<string>>(new Set(["payments-api", "fraud-detection-service"]))
+  const [drawerApp, setDrawerApp] = useState<AppEntry | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
-  const filtered = APPS.filter(app => {
-    const matchSearch = app.name.includes(search) || app.team.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === "all" || app.status === filter
-    return matchSearch && matchFilter
-  })
+  const teams = useMemo(() => ["all", ...Array.from(new Set(APPS.map(a => a.team))).sort()], [])
 
-  const statusCounts = {
+  const filtered = useMemo(() => {
+    return APPS
+      .filter(app => {
+        const ms = search.toLowerCase()
+        const matchSearch = !ms ||
+          app.name.includes(ms) || app.team.toLowerCase().includes(ms) ||
+          app.type.toLowerCase().includes(ms) || app.tags.some(t => t.includes(ms))
+        const matchStatus = statusFilter === "all" || app.status === statusFilter
+        const matchCrit = critFilter === "all" || app.criticality === critFilter
+        const matchTeam = teamFilter === "all" || app.team === teamFilter
+        return matchSearch && matchStatus && matchCrit && matchTeam
+      })
+      .sort((a, b) => {
+        if (sortBy === "criticality") {
+          const cd = CRITICALITY_ORDER[a.criticality] - CRITICALITY_ORDER[b.criticality]
+          return cd !== 0 ? cd : STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+        }
+        if (sortBy === "score") return a.score - b.score
+        if (sortBy === "latency") return parseInt(a.latency) - parseInt(b.latency)
+        if (sortBy === "incidents") return b.incidents - a.incidents
+        return 0
+      })
+  }, [search, statusFilter, critFilter, teamFilter, sortBy])
+
+  const counts = useMemo(() => ({
     all: APPS.length,
     healthy: APPS.filter(a => a.status === "healthy").length,
     warning: APPS.filter(a => a.status === "warning").length,
     critical: APPS.filter(a => a.status === "critical").length,
     degraded: APPS.filter(a => a.status === "degraded").length,
+  }), [])
+
+  const toggleFav = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setFavorites(prev => {
+      const n = new Set(prev)
+      n.has(name) ? n.delete(name) : n.add(name)
+      return n
+    })
   }
 
+  const scoreColor = (s: number) => s >= 90 ? "#10b981" : s >= 70 ? "#f59e0b" : "#ef4444"
+
   return (
-    <div className="min-h-full">
-      <PageHeader
-        title="Application Catalog"
-        description={`${APPS.length} applications monitored across all environments`}
-        actions={
-          <Button size="sm" className="gap-2">
-            <Plus className="w-3.5 h-3.5" /> Add Application
-          </Button>
-        }
-      />
-
-      <div className="px-6 pb-6 space-y-4">
-        {/* Filters bar */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-52 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search applications..."
-              className="pl-9 h-8 text-sm"
+    <>
+      {/* Drawer backdrop */}
+      <AnimatePresence>
+        {drawerApp && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+              onClick={() => setDrawerApp(null)}
             />
-          </div>
+            <AppDrawer app={drawerApp} onClose={() => setDrawerApp(null)} />
+          </>
+        )}
+      </AnimatePresence>
 
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-            {(["all", "healthy", "warning", "critical", "degraded"] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
+      <div className="min-h-full">
+        <PageHeader
+          title="Application Catalog"
+          description={`${APPS.length} applications monitored · ${counts.critical + counts.degraded + counts.warning} need attention`}
+          actions={
+            <Button size="sm" className="gap-2">
+              <Plus className="w-3.5 h-3.5" /> Add Application
+            </Button>
+          }
+        />
+
+        <div className="px-6 pb-6 space-y-4">
+          {/* Status filter pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["all", "healthy", "warning", "degraded", "critical"] as const).map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)}
                 className={cn(
-                  "px-3 py-1 text-xs font-medium rounded-md transition-all duration-150 capitalize",
-                  filter === f
-                    ? "bg-background text-foreground shadow-elevation-1"
-                    : "text-muted-foreground hover:text-foreground"
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+                  statusFilter === f
+                    ? f === "all" ? "bg-foreground text-background border-foreground"
+                    : f === "healthy" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
+                    : f === "warning" ? "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400"
+                    : f === "degraded" ? "bg-orange-500/15 text-orange-600 border-orange-500/30 dark:text-orange-400"
+                    : "bg-red-500/15 text-red-600 border-red-500/30 dark:text-red-400"
+                    : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
                 )}
               >
-                {f} ({statusCounts[f]})
+                {f !== "all" && (
+                  <span className={cn("w-1.5 h-1.5 rounded-full",
+                    f === "healthy" ? "bg-emerald-500" :
+                    f === "warning" ? "bg-amber-500" :
+                    f === "degraded" ? "bg-orange-500" : "bg-red-500"
+                  )} />
+                )}
+                <span className="capitalize">{f}</span>
+                <span className="text-[10px] opacity-70">({counts[f as keyof typeof counts] ?? counts.all})</span>
               </button>
             ))}
-          </div>
 
-          <div className="flex items-center gap-1 ml-auto">
-            <Button variant={view === "list" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setView("list")}>
-              <List className="w-4 h-4" />
-            </Button>
-            <Button variant={view === "grid" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setView("grid")}>
-              <Grid3x3 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Apps */}
-        {view === "list" ? (
-          <div className="premium-card overflow-hidden">
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span>Application</span>
-              <span>Status</span>
-              <span>Latency</span>
-              <span>Uptime</span>
-              <span>RPM</span>
-              <span></span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant={showFilters ? "secondary" : "outline"} size="sm" className="gap-1.5 h-8 text-xs"
+                onClick={() => setShowFilters(p => !p)}>
+                <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
+                {(critFilter !== "all" || teamFilter !== "all") && (
+                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                    {[critFilter !== "all", teamFilter !== "all"].filter(Boolean).length}
+                  </span>
+                )}
+              </Button>
+              <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-0.5">
+                <Button variant={view === "list" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setView("list")}>
+                  <List className="w-4 h-4" />
+                </Button>
+                <Button variant={view === "grid" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setView("grid")}>
+                  <Grid3x3 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-            <div className="divide-y divide-border/40">
-              {filtered.map((app, i) => (
-                <motion.div
-                  key={app.name}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-muted/30 cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center shrink-0">
-                      <Server className="w-3.5 h-3.5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold font-mono text-foreground truncate">{app.name}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-xs text-muted-foreground">{app.team}</span>
-                        {app.tags.map(t => (
-                          <span key={t} className="text-[10px] px-1.5 py-0 rounded-full bg-muted text-muted-foreground font-medium">{t}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <StatusBadge status={app.status} size="sm" />
-                  <div className={cn(
-                    "text-sm font-mono font-semibold",
-                    parseInt(app.latency) > 500 ? "text-red-500" :
-                    parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
-                  )}>{app.latency}</div>
-                  <div className="text-sm font-mono text-foreground">{app.uptime}</div>
-                  <div className="text-sm font-mono text-foreground">{app.rpm}</div>
-                  <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </Button>
+          </div>
+
+          {/* Search + extended filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-48 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search apps, teams, tags..." className="pl-9 h-8 text-sm" />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }} className="flex items-center gap-2 overflow-hidden">
+                  <select
+                    value={critFilter}
+                    onChange={e => setCritFilter(e.target.value)}
+                    className="h-8 px-2 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="all">All Criticality</option>
+                    {["P0", "P1", "P2", "P3"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value)}
+                    className="h-8 px-2 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    {teams.map(t => <option key={t} value={t}>{t === "all" ? "All Teams" : t}</option>)}
+                  </select>
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
+              <span>Sort:</span>
+              {(["criticality", "score", "latency", "incidents"] as const).map(s => (
+                <button key={s} onClick={() => setSortBy(s)}
+                  className={cn("px-2 py-0.5 rounded-md capitalize transition-all",
+                    sortBy === s ? "text-primary font-semibold bg-primary/10" : "hover:text-foreground"
+                  )}>{s}</button>
               ))}
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((app, i) => (
-              <motion.div
-                key={app.name}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
-                whileHover={{ y: -2 }}
-                className="premium-card p-4 cursor-pointer group"
-              >
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
-                    <Server className="w-4 h-4 text-primary" />
-                  </div>
-                  <StatusBadge status={app.status} size="sm" />
-                </div>
-                <div className="font-semibold text-sm font-mono text-foreground mb-0.5 truncate">{app.name}</div>
-                <div className="text-xs text-muted-foreground mb-3">{app.team} · {app.type}</div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <div className="text-xs font-mono font-semibold text-foreground">{app.latency}</div>
-                    <div className="text-[10px] text-muted-foreground">p99</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-mono font-semibold text-foreground">{app.uptime}</div>
-                    <div className="text-[10px] text-muted-foreground">uptime</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-mono font-semibold text-foreground">{app.rpm}</div>
-                    <div className="text-[10px] text-muted-foreground">rpm</div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+
+          {/* Count */}
+          <div className="text-xs text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {APPS.length} applications
           </div>
-        )}
+
+          {/* LIST VIEW */}
+          {view === "list" && (
+            <div className="premium-card overflow-hidden">
+              <div className="grid grid-cols-[2fr_1fr_80px_72px_72px_72px_60px_48px] gap-3 px-5 py-2.5 border-b border-border/60 bg-muted/20">
+                {["Application", "Team / Type", "Status", "Score", "Latency", "Uptime", "Inc.", ""].map(h => (
+                  <span key={h} className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-border/30">
+                {filtered.map((app, i) => (
+                  <motion.div
+                    key={app.name}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.02 }}
+                    onClick={() => setDrawerApp(app)}
+                    className="grid grid-cols-[2fr_1fr_80px_72px_72px_72px_60px_48px] gap-3 items-center px-5 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                        app.status === "critical" ? "bg-red-500/10" :
+                        app.status === "warning" ? "bg-amber-500/10" :
+                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+                      )}>
+                        <Server className={cn("w-3.5 h-3.5",
+                          app.status === "critical" ? "text-red-500" :
+                          app.status === "warning" ? "text-amber-500" :
+                          app.status === "degraded" ? "text-orange-500" : "text-primary"
+                        )} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold font-mono text-foreground truncate">{app.name}</span>
+                          {favorites.has(app.name) && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
+                          <span className={cn("text-[9px] font-bold px-1 rounded shrink-0",
+                            app.criticality === "P0" ? "text-red-500 bg-red-500/10" :
+                            app.criticality === "P1" ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"
+                          )}>{app.criticality}</span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {app.tags.slice(0, 2).map(t => (
+                            <span key={t} className="text-[9px] text-muted-foreground/70 font-medium">{t}</span>
+                          ))}
+                          {app.tags.length > 2 && <span className="text-[9px] text-muted-foreground/50">+{app.tags.length - 2}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-medium text-foreground">{app.team}</div>
+                      <div className="text-[10px] text-muted-foreground">{app.type}</div>
+                    </div>
+
+                    <StatusBadge status={app.status} size="sm" />
+
+                    <div className="flex items-center gap-1">
+                      <MiniSparkline data={app.trend} color={scoreColor(app.score)} />
+                      <span className="text-xs font-mono font-bold" style={{ color: scoreColor(app.score) }}>{app.score}</span>
+                    </div>
+
+                    <span className={cn("text-xs font-mono font-semibold",
+                      parseInt(app.latency) > 500 ? "text-red-500" :
+                      parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
+                    )}>{app.latency}</span>
+
+                    <span className="text-xs font-mono text-foreground">{app.uptime}</span>
+
+                    <span className={cn("text-xs font-semibold",
+                      app.incidents > 0 ? "text-red-500" : "text-muted-foreground"
+                    )}>{app.incidents > 0 ? app.incidents : "—"}</span>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={e => toggleFav(app.name, e)} className="p-1 rounded hover:bg-muted">
+                        {favorites.has(app.name)
+                          ? <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          : <StarOff className="w-3 h-3 text-muted-foreground" />
+                        }
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* GRID VIEW */}
+          {view === "grid" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((app, i) => (
+                <motion.div
+                  key={app.name}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  whileHover={{ y: -2 }}
+                  onClick={() => setDrawerApp(app)}
+                  className="premium-card p-4 cursor-pointer group hover:shadow-elevation-2 transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                        app.status === "critical" ? "bg-red-500/10" :
+                        app.status === "warning" ? "bg-amber-500/10" :
+                        app.status === "degraded" ? "bg-orange-500/10" : "bg-primary/10"
+                      )}>
+                        <Server className={cn("w-4 h-4",
+                          app.status === "critical" ? "text-red-500" :
+                          app.status === "warning" ? "text-amber-500" :
+                          app.status === "degraded" ? "text-orange-500" : "text-primary"
+                        )} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1">
+                          <span className={cn("text-[9px] font-bold px-1 rounded",
+                            app.criticality === "P0" ? "text-red-500 bg-red-500/10" :
+                            app.criticality === "P1" ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"
+                          )}>{app.criticality}</span>
+                          {favorites.has(app.name) && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={e => toggleFav(app.name, e)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted">
+                      {favorites.has(app.name)
+                        ? <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                        : <StarOff className="w-3.5 h-3.5 text-muted-foreground" />
+                      }
+                    </button>
+                  </div>
+
+                  <div className="font-semibold text-sm font-mono text-foreground mb-0.5 truncate">{app.name}</div>
+                  <div className="text-xs text-muted-foreground mb-3">{app.team} · {app.type}</div>
+
+                  <div className="flex items-center justify-between mb-3">
+                    <StatusBadge status={app.status} size="sm" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg font-bold font-mono leading-none" style={{ color: scoreColor(app.score) }}>{app.score}</span>
+                      <MiniSparkline data={app.trend} color={scoreColor(app.score)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
+                      <div className={cn("text-xs font-mono font-bold",
+                        parseInt(app.latency) > 500 ? "text-red-500" :
+                        parseInt(app.latency) > 200 ? "text-amber-500" : "text-foreground"
+                      )}>{app.latency}</div>
+                      <div className="text-[9px] text-muted-foreground">latency</div>
+                    </div>
+                    <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
+                      <div className="text-xs font-mono font-bold text-foreground">{app.uptime}</div>
+                      <div className="text-[9px] text-muted-foreground">uptime</div>
+                    </div>
+                    <div className={cn("rounded-lg px-1.5 py-1.5", app.incidents > 0 ? "bg-red-500/8" : "bg-muted/50")}>
+                      <div className={cn("text-xs font-mono font-bold", app.incidents > 0 ? "text-red-500" : "text-foreground")}>
+                        {app.incidents > 0 ? app.incidents : "0"}
+                      </div>
+                      <div className="text-[9px] text-muted-foreground">incidents</div>
+                    </div>
+                  </div>
+
+                  {app.tags.length > 0 && (
+                    <div className="flex gap-1 mt-2.5 flex-wrap">
+                      {app.tags.slice(0, 3).map(t => (
+                        <span key={t} className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-muted border border-border/40 text-muted-foreground">{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {filtered.length === 0 && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mb-4">
+                <Search className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div className="text-sm font-semibold text-foreground mb-1">No applications found</div>
+              <div className="text-xs text-muted-foreground">Try adjusting your search or filters</div>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSearch(""); setStatusFilter("all"); setCritFilter("all"); setTeamFilter("all") }}>
+                Clear all filters
+              </Button>
+            </motion.div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

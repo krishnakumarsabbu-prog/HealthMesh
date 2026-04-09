@@ -1,0 +1,74 @@
+import { motion } from "framer-motion"
+import { Zap, Activity, Database, Monitor, Wifi, Shield, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Link, Cpu, ChartBar as BarChart3 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { SIGNALS } from "./data"
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  "zap": <Zap className="w-3.5 h-3.5" />,
+  "activity": <Activity className="w-3.5 h-3.5" />,
+  "bar-chart": <BarChart3 className="w-3.5 h-3.5" />,
+  "cpu": <Cpu className="w-3.5 h-3.5" />,
+  "memory-stick": <Database className="w-3.5 h-3.5" />,
+  "refresh-cw": <RefreshCw className="w-3.5 h-3.5" />,
+  "monitor": <Monitor className="w-3.5 h-3.5" />,
+  "wifi": <Wifi className="w-3.5 h-3.5" />,
+  "database": <Database className="w-3.5 h-3.5" />,
+  "link": <Link className="w-3.5 h-3.5" />,
+  "shield": <Shield className="w-3.5 h-3.5" />,
+  "check-circle": <CheckCircle className="w-3.5 h-3.5" />,
+}
+
+const SOURCES = ["APM", "Infra", "Synthetic", "Database", "API"]
+
+export function TabSignals() {
+  return (
+    <div className="space-y-5">
+      {SOURCES.map(source => {
+        const items = SIGNALS.filter(s => s.source === source)
+        return (
+          <div key={source}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{source}</div>
+              <div className="flex-1 h-px bg-border/60" />
+              <div className="text-[10px] text-muted-foreground">{items.filter(i => i.status === "pass").length}/{items.length} passing</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {items.map((sig, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                  className={cn(
+                    "premium-card p-4 border-l-2",
+                    sig.status === "pass" ? "border-l-emerald-500" :
+                    sig.status === "warn" ? "border-l-amber-500" : "border-l-red-500"
+                  )}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("w-6 h-6 rounded-md flex items-center justify-center",
+                        sig.status === "pass" ? "bg-emerald-500/10 text-emerald-500" :
+                        sig.status === "warn" ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"
+                      )}>
+                        {ICON_MAP[sig.icon]}
+                      </span>
+                      <span className="text-xs font-semibold text-foreground">{sig.metric}</span>
+                    </div>
+                    {sig.status === "pass"
+                      ? <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                      : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                    }
+                  </div>
+                  <div className="text-lg font-bold font-mono text-foreground mb-0.5">{sig.value}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-muted-foreground font-mono">threshold: {sig.threshold}</div>
+                    <div className={cn("text-[10px] font-semibold font-mono",
+                      sig.delta.startsWith("+") ? "text-emerald-500" : sig.delta.startsWith("-") ? "text-red-400" : "text-muted-foreground"
+                    )}>{sig.delta !== "0" ? sig.delta : "—"}</div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
