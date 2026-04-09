@@ -16,6 +16,9 @@ import {
 } from "./onboarding/data"
 import { StepSummary } from "./onboarding/StepSummary"
 import { HealthScorePreview } from "./onboarding/HealthScorePreview"
+import { createApp } from "@/lib/api/apps"
+import { listTeams } from "@/lib/api/misc"
+import { useApi } from "@/hooks/useApi"
 
 const ENVIRONMENTS = ["Production", "Staging", "Development"]
 const CRITICALITIES = ["P0 — Mission Critical", "P1 — High", "P2 — Medium", "P3 — Low"]
@@ -49,6 +52,31 @@ export function OnboardingStudio() {
   const [weights, setWeights] = useState<WeightConfig[]>(DEFAULT_WEIGHTS)
 
   const [activationDone, setActivationDone] = useState(false)
+  const [activating, setActivating] = useState(false)
+
+  const { data: teamsData } = useApi(listTeams, [])
+  const teamSuggestions = teamsData?.map(t => t.name) ?? []
+
+  const handleActivate = async () => {
+    setActivating(true)
+    try {
+      await createApp({
+        name: appName,
+        environment,
+        app_type: appType,
+        runtime,
+        team_id: team,
+        owner_name: owner,
+        criticality: criticality.split(" — ")[0],
+        description,
+        status: "healthy",
+      })
+    } catch {
+    } finally {
+      setActivating(false)
+      setActivationDone(true)
+    }
+  }
 
   const toggleConnector = (id: string) =>
     setSelectedConnectors(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -193,7 +221,12 @@ export function OnboardingStudio() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Owning Team</label>
-                            <Input value={team} onChange={e => setTeam(e.target.value)} placeholder="e.g. Payments, Platform" />
+                            <Input value={team} onChange={e => setTeam(e.target.value)} placeholder="e.g. Payments, Platform" list="team-suggestions" />
+                            {teamSuggestions.length > 0 && (
+                              <datalist id="team-suggestions">
+                                {teamSuggestions.map(t => <option key={t} value={t} />)}
+                              </datalist>
+                            )}
                           </div>
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Primary Owner</label>
@@ -492,8 +525,8 @@ export function OnboardingStudio() {
                             </ul>
                           </div>
 
-                          <Button className="w-full gap-2 h-11 text-sm font-semibold" onClick={() => setActivationDone(true)}>
-                            <Zap className="w-4 h-4" /> Activate {appName || "Application"}
+                          <Button className="w-full gap-2 h-11 text-sm font-semibold" onClick={handleActivate} disabled={activating || !appName.trim()}>
+                            <Zap className="w-4 h-4" /> {activating ? "Activating…" : `Activate ${appName || "Application"}`}
                           </Button>
                         </>
                       ) : (

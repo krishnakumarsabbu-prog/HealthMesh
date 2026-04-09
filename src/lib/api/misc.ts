@@ -192,17 +192,6 @@ export const updateHealthRule = (id: string, body: Partial<HealthRule>) => api.p
 export const toggleHealthRule = (id: string, enabled: boolean) => api.put<HealthRule>(`/api/rules/${id}`, { enabled });
 export const getDependencyMap = () => api.get<DependencyMap>("/api/dependencies/map");
 export const listAiInsights = () => api.get<AiInsight[]>("/api/ai/insights");
-export interface TrendSummary {
-  avg_availability: string;
-  total_incidents: number;
-  mttr_improvement: string;
-  avg_latency_delta: string;
-  incident_reduction_pct: number;
-  sources: SourceTrend[];
-  teams: TeamTrend[];
-  environments: EnvTrend[];
-}
-
 export const getTrends = (period = "monthly") =>
   api.get<TrendDataPoint[]>(`/api/trends/health?period=${period}`);
 export const getWeeklyTrends = () =>

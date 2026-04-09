@@ -552,7 +552,7 @@ export function HistoricalTrends() {
               <span className="section-label">Environment Health</span>
             </div>
             <div className="space-y-3">
-              {ENV_TRENDS.map(e => (
+              {envTrends.map(e => (
                 <motion.div key={e.env} whileHover={{ scale: 1.01 }} transition={{ duration: 0.15 }}
                   className="premium-card-interactive p-3.5">
                   <div className="flex items-center justify-between mb-2.5">

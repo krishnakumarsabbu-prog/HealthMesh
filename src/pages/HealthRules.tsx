@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { listHealthRules, type HealthRule as ApiHealthRule } from "@/lib/api/misc"
+import { listHealthRules, toggleHealthRule, createHealthRule, type HealthRule as ApiHealthRule } from "@/lib/api/misc"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type RuleCondition = { metric: string; operator: string; value: string; unit: string }
@@ -67,7 +67,7 @@ function apiToRule(r: ApiHealthRule, idx: number): Rule {
   }
 }
 
-function RuleBuilderModal({ onClose }: { onClose: () => void }) {
+function RuleBuilderModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   const [ruleName, setRuleName] = useState("")
   const [severity, setSeverity] = useState<"warning" | "critical">("warning")
   const [scope, setScope] = useState("All Services")
@@ -77,6 +77,7 @@ function RuleBuilderModal({ onClose }: { onClose: () => void }) {
   const [logic, setLogic] = useState<"AND" | "OR">("AND")
   const [weight, setWeight] = useState(50)
   const [testResult, setTestResult] = useState<null | "pass" | "fail">(null)
+  const [saving, setSaving] = useState(false)
 
   const addCondition = () => setConditions(prev => [...prev, { metric: "http.error_rate", operator: ">", value: "1", unit: "%" }])
   const removeCondition = (i: number) => setConditions(prev => prev.filter((_, j) => j !== i))
@@ -86,6 +87,30 @@ function RuleBuilderModal({ onClose }: { onClose: () => void }) {
   const expressionPreview = conditions
     .map(c => `${c.metric} ${c.operator} ${c.value}${c.unit}`)
     .join(` ${logic} `)
+
+  const handleSave = async () => {
+    if (!ruleName.trim()) return
+    setSaving(true)
+    try {
+      const primaryCondition = conditions[0]
+      await createHealthRule({
+        name: ruleName,
+        metric: primaryCondition.metric,
+        operator: primaryCondition.operator,
+        threshold: parseFloat(primaryCondition.value) || 0,
+        severity,
+        scope,
+        enabled: true,
+        tags: [],
+      })
+      onSaved?.()
+      onClose()
+    } catch {
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <>
@@ -225,8 +250,8 @@ function RuleBuilderModal({ onClose }: { onClose: () => void }) {
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" className="gap-2" onClick={onClose}>
-              <CheckCircle className="w-3.5 h-3.5" /> Save Rule
+            <Button size="sm" className="gap-2" onClick={handleSave} disabled={saving || !ruleName.trim()}>
+              <CheckCircle className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Save Rule"}
             </Button>
           </div>
         </div>
@@ -242,7 +267,7 @@ export function HealthRules() {
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null)
   const [localEnabled, setLocalEnabled] = useState<Record<number, boolean>>({})
 
-  const { data: apiRules, loading: rulesLoading } = useApi(listHealthRules, [])
+  const { data: apiRules, loading: rulesLoading, refetch: refetchRules } = useApi(listHealthRules, [])
 
   const baseRules: Rule[] = apiRules && apiRules.length > 0
     ? apiRules.map((r, i) => apiToRule(r, i))
@@ -261,7 +286,15 @@ export function HealthRules() {
 
   const toggleRule = (id: number) => {
     const current = rules.find(r => r.id === id)
-    if (current) setLocalEnabled(prev => ({ ...prev, [id]: !current.enabled }))
+    if (!current) return
+    const newEnabled = !current.enabled
+    setLocalEnabled(prev => ({ ...prev, [id]: newEnabled }))
+    const apiRule = apiRules?.find((_, i) => i === id)
+    if (apiRule) {
+      toggleHealthRule(apiRule.id, newEnabled).catch(() => {
+        setLocalEnabled(prev => ({ ...prev, [id]: current.enabled }))
+      })
+    }
   }
 
   return (
@@ -406,7 +439,7 @@ export function HealthRules() {
       </div>
 
       <AnimatePresence>
-        {showBuilder && <RuleBuilderModal onClose={() => setShowBuilder(false)} />}
+        {showBuilder && <RuleBuilderModal onClose={() => setShowBuilder(false)} onSaved={refetchRules} />}
       </AnimatePresence>
     </div>
   )

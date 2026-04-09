@@ -131,9 +131,9 @@ type IncidentEntry = {
 function apiToIncident(a: ApiIncident): IncidentEntry {
   return {
     id: a.id, title: a.title, apps: a.app_name ? [a.app_name] : [], sources: [],
-    severity: a.severity, status: a.status, age: a.duration || a.started_at,
-    owner: "", assignee: a.assignee, desc: a.ai_cause,
-    cause: a.ai_cause, healthImpact: parseInt(a.health_impact) || 0,
+    severity: a.severity, status: a.status, age: a.duration || a.started_at || "—",
+    owner: "", assignee: a.assignee || "Unassigned", desc: a.ai_cause || "Investigation in progress.",
+    cause: a.ai_cause || "Under investigation", healthImpact: parseInt(a.health_impact) || 0,
     affectedDeps: a.affected_deps || [],
     timeline: a.timeline || [],
   }
@@ -242,7 +242,7 @@ export function IncidentsAlerts() {
     active: INCIDENTS.filter(i => i.status === "active").length,
     investigating: INCIDENTS.filter(i => i.status === "investigating").length,
     resolved: INCIDENTS.filter(i => i.status === "resolved").length,
-    mttr: "1h 24m",
+    mttr: "—",
   }
 
   return (
@@ -263,7 +263,7 @@ export function IncidentsAlerts() {
           {[
             { label: "Active", value: stats.active, color: "text-red-500", bg: "bg-red-500/8 border-red-500/20", dot: "bg-red-500 animate-pulse", glow: "shadow-glow-red" },
             { label: "Investigating", value: stats.investigating, color: "text-amber-500", bg: "bg-amber-500/8 border-amber-500/20", dot: "bg-amber-500", glow: "" },
-            { label: "Resolved (7d)", value: stats.resolved + 14, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/20", dot: "bg-emerald-500", glow: "" },
+            { label: "Resolved (7d)", value: stats.resolved, color: "text-emerald-500", bg: "bg-emerald-500/8 border-emerald-500/20", dot: "bg-emerald-500", glow: "" },
             { label: "MTTR (7d)", value: stats.mttr, color: "text-blue-500", bg: "bg-blue-500/8 border-blue-500/20", dot: "bg-blue-400", glow: "" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}

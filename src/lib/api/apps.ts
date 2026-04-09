@@ -178,3 +178,4 @@ export interface AppConfiguration {
 
 export const getAppConfiguration = (id: string) => api.get<AppConfiguration>(`/api/apps/${id}/configuration`);
 export const getAppHealthHistory = (id: string) => api.get<Array<{ label: string; score: number }>>(`/api/apps/${id}/health-history`);
+export const createApp = (body: Partial<AppSummary>) => api.post<AppSummary>("/api/apps", body);

@@ -283,12 +283,12 @@ export function ApplicationCatalog() {
   }, [search, statusFilter, critFilter, teamFilter, sortBy])
 
   const counts = useMemo(() => ({
-    all: APPS.length,
-    healthy: APPS.filter(a => a.status === "healthy").length,
-    warning: APPS.filter(a => a.status === "warning").length,
-    critical: APPS.filter(a => a.status === "critical").length,
-    degraded: APPS.filter(a => a.status === "degraded").length,
-  }), [])
+    all: APPS_DATA.length,
+    healthy: APPS_DATA.filter(a => a.status === "healthy").length,
+    warning: APPS_DATA.filter(a => a.status === "warning").length,
+    critical: APPS_DATA.filter(a => a.status === "critical").length,
+    degraded: APPS_DATA.filter(a => a.status === "degraded").length,
+  }), [APPS_DATA])
 
   const toggleFav = (name: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -326,7 +326,7 @@ export function ApplicationCatalog() {
       <div className="min-h-full">
         <PageHeader
           title="Application Catalog"
-          description={`${APPS.length} applications monitored · ${counts.critical + counts.degraded + counts.warning} need attention`}
+          description={`${counts.all} applications monitored · ${counts.critical + counts.degraded + counts.warning} need attention`}
           actions={
             <Button size="sm" className="gap-2">
               <Plus className="w-3.5 h-3.5" /> Add Application
@@ -430,7 +430,7 @@ export function ApplicationCatalog() {
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              Showing <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> of {APPS.length} applications
+              Showing <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> of {counts.all} applications
             </p>
             <div className="live-indicator">
               <span className="live-dot" />
