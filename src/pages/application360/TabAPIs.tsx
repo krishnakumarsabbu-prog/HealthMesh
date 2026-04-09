@@ -1,6 +1,8 @@
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { ENDPOINTS } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppEndpoints, type AppEndpoint } from "@/lib/api/apps"
 
 const METHOD_COLOR: Record<string, string> = {
   GET: "bg-blue-500/10 text-blue-500",
@@ -9,16 +11,35 @@ const METHOD_COLOR: Record<string, string> = {
   DELETE: "bg-red-500/10 text-red-500",
 }
 
-export function TabAPIs() {
+type EndpointEntry = { path: string; method: string; latency: number; avail: number; errorPct: number; rpm: number; status: "healthy" | "warning" | "critical" }
+
+function apiEndpointToEntry(e: AppEndpoint): EndpointEntry {
+  return {
+    path: e.path,
+    method: e.method,
+    latency: e.latency_p99,
+    avail: 100 - e.error_rate,
+    errorPct: e.error_rate,
+    rpm: e.rpm,
+    status: e.status as EndpointEntry["status"],
+  }
+}
+
+export function TabAPIs({ appId }: { appId: string }) {
+  const { data: apiEndpoints } = useApi(() => getAppEndpoints(appId), [appId])
+
+  const endpoints: EndpointEntry[] = apiEndpoints && apiEndpoints.length > 0
+    ? apiEndpoints.map(apiEndpointToEntry)
+    : ENDPOINTS
+
   const statusCounts = {
-    healthy: ENDPOINTS.filter(e => e.status === "healthy").length,
-    warning: ENDPOINTS.filter(e => e.status === "warning").length,
-    critical: ENDPOINTS.filter(e => e.status === "critical").length,
+    healthy: endpoints.filter(e => e.status === "healthy").length,
+    warning: endpoints.filter(e => e.status === "warning").length,
+    critical: endpoints.filter(e => e.status === "critical").length,
   }
 
   return (
     <div className="space-y-4">
-      {/* Summary strip */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Healthy Endpoints", value: statusCounts.healthy, color: "text-emerald-500" },
@@ -32,7 +53,6 @@ export function TabAPIs() {
         ))}
       </div>
 
-      {/* Endpoint table */}
       <div className="premium-card overflow-hidden">
         <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           <span>Method</span>
@@ -43,10 +63,10 @@ export function TabAPIs() {
           <span>RPM</span>
         </div>
         <div className="divide-y divide-border/40">
-          {ENDPOINTS.map((ep, i) => (
+          {endpoints.map((ep, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
               className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-colors">
-              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0", METHOD_COLOR[ep.method])}>
+              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0", METHOD_COLOR[ep.method] || "bg-muted text-muted-foreground")}>
                 {ep.method}
               </span>
               <div className="flex items-center gap-2 min-w-0">

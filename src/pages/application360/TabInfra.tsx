@@ -2,6 +2,8 @@ import { motion } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
 import { cn } from "@/lib/utils"
 import { INFRA_PODS } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppInfra, type AppInfraPod } from "@/lib/api/apps"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -18,21 +20,43 @@ const CPU_DATA = Array.from({ length: 30 }, (_, i) => ({
   mem: Math.round(67 + Math.sin(i * 0.3) * 8 + Math.random() * 5),
 }))
 
-const INFRA_METRICS = [
-  { label: "Avg CPU", value: "62%", warn: false },
-  { label: "Avg Memory", value: "71%", warn: true },
-  { label: "Pod Count", value: "4 / 4", warn: false },
-  { label: "Node Count", value: "3 / 3", warn: false },
-  { label: "Total Restarts", value: "3", warn: true },
-  { label: "Network In", value: "142 MB/s", warn: false },
-]
+type PodEntry = { name: string; node: string; cpu: number; mem: number; restarts: number; status: "running" | "warning"; age: string }
 
-export function TabInfra() {
+function apiPodToEntry(p: AppInfraPod): PodEntry {
+  return {
+    name: p.pod_name,
+    node: p.node,
+    cpu: p.cpu_pct,
+    mem: p.mem_pct,
+    restarts: p.restarts,
+    status: p.status === "running" ? "running" : "warning",
+    age: p.age,
+  }
+}
+
+export function TabInfra({ appId }: { appId: string }) {
+  const { data: apiPods } = useApi(() => getAppInfra(appId), [appId])
+
+  const pods: PodEntry[] = apiPods && apiPods.length > 0
+    ? apiPods.map(apiPodToEntry)
+    : INFRA_PODS
+
+  const avgCpu = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.cpu, 0) / pods.length) : 62
+  const avgMem = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.mem, 0) / pods.length) : 71
+  const totalRestarts = pods.reduce((a, p) => a + p.restarts, 0)
+  const runningPods = pods.filter(p => p.status === "running").length
+
+  const infraMetrics = [
+    { label: "Avg CPU", value: `${avgCpu}%`, warn: avgCpu > 75 },
+    { label: "Avg Memory", value: `${avgMem}%`, warn: avgMem > 70 },
+    { label: "Pod Count", value: `${runningPods} / ${pods.length}`, warn: false },
+    { label: "Total Restarts", value: String(totalRestarts), warn: totalRestarts > 0 },
+  ]
+
   return (
     <div className="space-y-4">
-      {/* Summary metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {INFRA_METRICS.map((m, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {infraMetrics.map((m, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
             className="premium-card p-3 text-center">
             <div className={cn("text-lg font-bold font-mono", m.warn ? "text-amber-500" : "text-foreground")}>{m.value}</div>
@@ -41,7 +65,6 @@ export function TabInfra() {
         ))}
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="premium-card p-5">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">CPU & Memory — 30 min</div>
@@ -74,13 +97,12 @@ export function TabInfra() {
           </div>
         </div>
 
-        {/* Pod table */}
         <div className="premium-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border/60">
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pod Status</div>
           </div>
           <div className="divide-y divide-border/40">
-            {INFRA_PODS.map((pod, i) => (
+            {pods.map((pod, i) => (
               <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
                 className="px-5 py-3 hover:bg-muted/20 transition-colors">
                 <div className="flex items-center gap-3 mb-2">

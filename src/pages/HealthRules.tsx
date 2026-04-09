@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listHealthRules, type HealthRule as ApiHealthRule } from "@/lib/api/misc"
 
 type RuleCondition = { metric: string; operator: string; value: string; unit: string }
 type Rule = {
@@ -45,6 +47,24 @@ const METRIC_OPTIONS = [
 
 const OPERATORS = [">", ">=", "<", "<=", "==", "!=", "< baseline by", "> baseline by"]
 const SCOPES = ["All Services", "All Production APIs", "Critical APIs", "Database Services", "SLO-tracked Services", "Specific Application"]
+
+function apiToRule(r: ApiHealthRule, idx: number): Rule {
+  const sev: Rule["severity"] = r.severity === "critical" ? "critical" : "warning"
+  return {
+    id: idx,
+    name: r.name,
+    metric: r.metric,
+    condition: `${r.operator} ${r.threshold}`,
+    severity: sev,
+    enabled: r.enabled,
+    scope: r.scope || "All Services",
+    triggers: r.trigger_count || 0,
+    tags: r.tags || [],
+    version: `v${r.version || 1}`,
+    lastTriggered: r.last_triggered || "Never",
+    linkedApps: [],
+  }
+}
 
 function RuleBuilderModal({ onClose }: { onClose: () => void }) {
   const [ruleName, setRuleName] = useState("")
@@ -217,9 +237,20 @@ function RuleBuilderModal({ onClose }: { onClose: () => void }) {
 export function HealthRules() {
   const [search, setSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
-  const [rules, setRules] = useState(RULES)
   const [showBuilder, setShowBuilder] = useState(false)
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null)
+  const [localEnabled, setLocalEnabled] = useState<Record<number, boolean>>({})
+
+  const { data: apiRules } = useApi(listHealthRules, [])
+
+  const baseRules: Rule[] = apiRules && apiRules.length > 0
+    ? apiRules.map((r, i) => apiToRule(r, i))
+    : RULES
+
+  const rules = baseRules.map(r => ({
+    ...r,
+    enabled: localEnabled[r.id] !== undefined ? localEnabled[r.id] : r.enabled,
+  }))
 
   const filtered = rules.filter(r => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase()) || r.metric.toLowerCase().includes(search.toLowerCase())
@@ -228,7 +259,8 @@ export function HealthRules() {
   })
 
   const toggleRule = (id: number) => {
-    setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r))
+    const current = rules.find(r => r.id === id)
+    if (current) setLocalEnabled(prev => ({ ...prev, [id]: !current.enabled }))
   }
 
   return (

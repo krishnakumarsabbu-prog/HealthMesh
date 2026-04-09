@@ -2,18 +2,39 @@ import { motion } from "framer-motion"
 import { ArrowDown, ArrowUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DEPENDENCIES } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppDependencies, type AppDependency } from "@/lib/api/apps"
 
-export function TabDependencies() {
-  const upstream = DEPENDENCIES.filter(d => d.direction === "upstream")
-  const downstream = DEPENDENCIES.filter(d => d.direction === "downstream")
+type DepEntry = { name: string; direction: string; latency: number; status: "healthy" | "warning" | "critical"; rpm: number; errorPct: number }
+
+function apiDepToEntry(d: AppDependency): DepEntry {
+  const latencyMs = typeof d.latency === "string" ? parseFloat(d.latency) : d.latency
+  const errorRate = typeof d.error_rate === "string" ? parseFloat(d.error_rate) : d.error_rate
+  return {
+    name: d.dep_name,
+    direction: d.dep_type === "upstream" ? "upstream" : "downstream",
+    latency: isNaN(latencyMs) ? 10 : latencyMs,
+    status: d.status as DepEntry["status"],
+    rpm: 1000,
+    errorPct: isNaN(errorRate) ? 0 : errorRate,
+  }
+}
+
+export function TabDependencies({ appId }: { appId: string }) {
+  const { data: apiDeps } = useApi(() => getAppDependencies(appId), [appId])
+
+  const dependencies: DepEntry[] = apiDeps && apiDeps.length > 0
+    ? apiDeps.map(apiDepToEntry)
+    : DEPENDENCIES
+
+  const upstream = dependencies.filter(d => d.direction === "upstream")
+  const downstream = dependencies.filter(d => d.direction === "downstream")
 
   return (
     <div className="space-y-4">
-      {/* Mini topology */}
       <div className="premium-card p-5">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-5">Dependency Topology</div>
         <div className="flex flex-col items-center gap-3">
-          {/* Upstream */}
           <div className="flex gap-3 flex-wrap justify-center">
             {upstream.map((d, i) => (
               <div key={i} className="flex flex-col items-center gap-1">
@@ -28,15 +49,13 @@ export function TabDependencies() {
             ))}
           </div>
 
-          {/* Arrow */}
           <div className="flex flex-col items-center gap-0.5">
             <ArrowDown className="w-3.5 h-3.5 text-muted-foreground" />
             <div className="w-0.5 h-4 bg-border/60" />
           </div>
 
-          {/* This service */}
           <div className="px-5 py-2.5 rounded-xl border-2 border-primary bg-primary/8 text-sm font-bold font-mono text-foreground text-center">
-            payments-api
+            {appId}
           </div>
 
           <div className="flex flex-col items-center gap-0.5">
@@ -44,7 +63,6 @@ export function TabDependencies() {
             <ArrowDown className="w-3.5 h-3.5 text-muted-foreground" />
           </div>
 
-          {/* Downstream */}
           <div className="flex gap-3 flex-wrap justify-center">
             {downstream.map((d, i) => (
               <div key={i} className="flex flex-col items-center gap-1">
@@ -61,7 +79,6 @@ export function TabDependencies() {
         </div>
       </div>
 
-      {/* Dependency table */}
       <div className="premium-card overflow-hidden">
         <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           <span></span>
@@ -72,7 +89,7 @@ export function TabDependencies() {
           <span>Errors</span>
         </div>
         <div className="divide-y divide-border/40">
-          {DEPENDENCIES.map((dep, i) => (
+          {dependencies.map((dep, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
               className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-colors">
               <div className={cn("w-2 h-2 rounded-full shrink-0",

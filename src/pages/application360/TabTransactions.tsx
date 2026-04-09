@@ -2,6 +2,8 @@ import { motion } from "framer-motion"
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
 import { cn } from "@/lib/utils"
 import { TRANSACTIONS, LATENCY_24H, THROUGHPUT_24H } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppTransactions, getAppOverview, type AppTransaction } from "@/lib/api/apps"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -19,14 +21,44 @@ const METHOD_COLOR: Record<string, string> = {
   DELETE: "bg-red-500/10 text-red-500",
 }
 
-export function TabTransactions() {
+type TxEntry = { name: string; rpm: number; p99: number; errors: number; apdex: number; status: "healthy" | "warning" | "critical" }
+
+function apiTxToEntry(t: AppTransaction): TxEntry {
+  const method = t.endpoint.split(" ")[0] || "GET"
+  const path = t.endpoint.includes(" ") ? t.endpoint.slice(method.length + 1) : t.endpoint
+  return {
+    name: `${method} ${path}`,
+    rpm: t.rpm,
+    p99: t.latency_p99,
+    errors: t.error_rate,
+    apdex: t.apdex,
+    status: t.status as TxEntry["status"],
+  }
+}
+
+export function TabTransactions({ appId }: { appId: string }) {
+  const { data: apiTransactions } = useApi(() => getAppTransactions(appId), [appId])
+  const { data: overview } = useApi(() => getAppOverview(appId), [appId])
+
+  const transactions: TxEntry[] = apiTransactions && apiTransactions.length > 0
+    ? apiTransactions.map(apiTxToEntry)
+    : TRANSACTIONS
+
+  const latencyData = overview?.latency_24h && overview.latency_24h.length > 0
+    ? overview.latency_24h.map(d => ({ time: d.t, p50: d.p50, p95: d.p95, p99: d.p99 }))
+    : LATENCY_24H
+
+  const throughputData = overview?.throughput_24h && overview.throughput_24h.length > 0
+    ? overview.throughput_24h.map(d => ({ time: d.t, rpm: d.rpm }))
+    : THROUGHPUT_24H
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="premium-card p-5">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Response Time P99 — 24h</div>
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={LATENCY_24H} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+            <LineChart data={latencyData} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.35} />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={11} />
               <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
@@ -48,7 +80,7 @@ export function TabTransactions() {
         <div className="premium-card p-5">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Throughput (rpm) — 24h</div>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={THROUGHPUT_24H} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+            <AreaChart data={throughputData} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="rpmGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
@@ -65,7 +97,6 @@ export function TabTransactions() {
         </div>
       </div>
 
-      {/* Transaction table */}
       <div className="premium-card overflow-hidden">
         <div className="grid grid-cols-[2.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           <span>Transaction</span>
@@ -76,7 +107,7 @@ export function TabTransactions() {
           <span></span>
         </div>
         <div className="divide-y divide-border/40">
-          {TRANSACTIONS.map((tx, i) => (
+          {transactions.map((tx, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
               className="grid grid-cols-[2.5fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-colors">
               <div className="flex items-center gap-2 min-w-0">

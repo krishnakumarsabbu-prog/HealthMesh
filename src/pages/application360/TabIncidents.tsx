@@ -2,6 +2,8 @@ import { motion } from "framer-motion"
 import { CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Clock, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { INCIDENTS } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppIncidents, type AppIncident } from "@/lib/api/apps"
 
 const SEV_STYLE: Record<string, string> = {
   critical: "bg-red-500/10 text-red-500",
@@ -9,18 +11,38 @@ const SEV_STYLE: Record<string, string> = {
   info: "bg-blue-500/10 text-blue-500",
 }
 
-export function TabIncidents() {
-  const resolved = INCIDENTS.filter(i => i.status === "resolved").length
+type IncEntry = { id: string; title: string; severity: string; opened: string; duration: string; status: string; assignee: string }
+
+function apiIncToEntry(i: AppIncident): IncEntry {
+  return {
+    id: i.id,
+    title: i.title,
+    severity: i.severity,
+    opened: i.started_at || "unknown",
+    duration: i.duration || "—",
+    status: i.status,
+    assignee: i.assignee || "unassigned",
+  }
+}
+
+export function TabIncidents({ appId }: { appId: string }) {
+  const { data: apiIncidents } = useApi(() => getAppIncidents(appId), [appId])
+
+  const incidents: IncEntry[] = apiIncidents && apiIncidents.length > 0
+    ? apiIncidents.map(apiIncToEntry)
+    : INCIDENTS
+
+  const resolved = incidents.filter(i => i.status === "resolved").length
+  const open = incidents.filter(i => i.status !== "resolved").length
 
   return (
     <div className="space-y-4">
-      {/* Summary strip */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Total Incidents (30d)", value: "14", color: "text-foreground" },
+          { label: "Total Incidents", value: String(incidents.length), color: "text-foreground" },
           { label: "Resolved", value: String(resolved), color: "text-emerald-500" },
           { label: "MTTR", value: "11.5m", color: "text-foreground" },
-          { label: "Open", value: "0", color: "text-emerald-500" },
+          { label: "Open", value: String(open), color: open > 0 ? "text-red-500" : "text-emerald-500" },
         ].map((s, i) => (
           <div key={i} className="premium-card px-4 py-3">
             <div className={cn("text-2xl font-bold", s.color)}>{s.value}</div>
@@ -29,13 +51,12 @@ export function TabIncidents() {
         ))}
       </div>
 
-      {/* Incident list */}
       <div className="premium-card overflow-hidden">
         <div className="px-5 py-3 border-b border-border/60">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Incidents</div>
         </div>
         <div className="divide-y divide-border/40">
-          {INCIDENTS.map((inc, i) => (
+          {incidents.map((inc, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }}
               className="flex items-start gap-4 px-5 py-4 hover:bg-muted/20 transition-colors">
               {inc.status === "resolved"
@@ -45,7 +66,7 @@ export function TabIncidents() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="text-xs font-mono font-bold text-muted-foreground">{inc.id}</span>
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", SEV_STYLE[inc.severity])}>
+                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", SEV_STYLE[inc.severity] || SEV_STYLE["info"])}>
                     {inc.severity}
                   </span>
                   <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",

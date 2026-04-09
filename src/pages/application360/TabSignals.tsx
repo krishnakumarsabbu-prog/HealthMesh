@@ -2,6 +2,8 @@ import { motion } from "framer-motion"
 import { Zap, Activity, Database, Monitor, Wifi, Shield, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Link, Cpu, ChartBar as BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SIGNALS } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { getAppSignals, type AppSignal } from "@/lib/api/apps"
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   "zap": <Zap className="w-3.5 h-3.5" />,
@@ -18,13 +20,41 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   "check-circle": <CheckCircle className="w-3.5 h-3.5" />,
 }
 
-const SOURCES = ["APM", "Infra", "Synthetic", "Database", "API"]
+type SignalEntry = {
+  source: string
+  metric: string
+  value: string
+  threshold: string
+  status: "pass" | "warn" | "fail"
+  delta: string
+  icon: string
+}
 
-export function TabSignals() {
+function apiSignalToEntry(s: AppSignal): SignalEntry {
+  return {
+    source: s.category,
+    metric: s.name,
+    value: `${s.value}${s.unit ? ` ${s.unit}` : ""}`,
+    threshold: "—",
+    status: s.status === "healthy" ? "pass" : s.status === "warning" ? "warn" : "fail",
+    delta: s.delta || "0",
+    icon: "activity",
+  }
+}
+
+export function TabSignals({ appId }: { appId: string }) {
+  const { data: apiSignals } = useApi(() => getAppSignals(appId), [appId])
+
+  const signals: SignalEntry[] = apiSignals && apiSignals.length > 0
+    ? apiSignals.map(apiSignalToEntry)
+    : SIGNALS
+
+  const sources = [...new Set(signals.map(s => s.source))]
+
   return (
     <div className="space-y-5">
-      {SOURCES.map(source => {
-        const items = SIGNALS.filter(s => s.source === source)
+      {sources.map(source => {
+        const items = signals.filter(s => s.source === source)
         return (
           <div key={source}>
             <div className="flex items-center gap-2 mb-3">
@@ -47,7 +77,7 @@ export function TabSignals() {
                         sig.status === "pass" ? "bg-emerald-500/10 text-emerald-500" :
                         sig.status === "warn" ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"
                       )}>
-                        {ICON_MAP[sig.icon]}
+                        {ICON_MAP[sig.icon] || <Activity className="w-3.5 h-3.5" />}
                       </span>
                       <span className="text-xs font-semibold text-foreground">{sig.metric}</span>
                     </div>

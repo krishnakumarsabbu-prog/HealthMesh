@@ -1,5 +1,5 @@
 import { motion } from "framer-motion"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Server, GitBranch, ExternalLink } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { listApps, type AppSummary } from "@/lib/api/apps"
 import { APP_OPTIONS } from "./application360/data"
 import { TabOverview } from "./application360/TabOverview"
 import { TabSignals } from "./application360/TabSignals"
@@ -35,23 +37,60 @@ const TABS = [
   { value: "configuration", label: "Configuration" },
 ]
 
+type AppOption = {
+  value: string
+  label: string
+  team: string
+  lang: string
+  version: string
+  runtime: string
+  type: string
+  score: number
+  status: "healthy" | "warning" | "critical" | "degraded"
+  criticality: string
+}
+
+function apiAppToOption(a: AppSummary): AppOption {
+  return {
+    value: a.id,
+    label: a.name,
+    team: a.team_id || "Unknown",
+    lang: a.runtime || "Unknown",
+    version: a.version || "latest",
+    runtime: a.platform || "Kubernetes",
+    type: a.app_type || "API",
+    score: a.health_score,
+    status: a.status as AppOption["status"],
+    criticality: a.criticality || "P2",
+  }
+}
+
 export function Application360() {
-  const [selectedApp, setSelectedApp] = useState("payments-api")
-  const app = APP_OPTIONS.find(a => a.value === selectedApp) ?? APP_OPTIONS[0]
+  const [selectedApp, setSelectedApp] = useState<string | null>(null)
+
+  const { data: apiApps } = useApi(listApps)
+
+  const APP_OPTS: AppOption[] = useMemo(() => {
+    if (apiApps && apiApps.length > 0) return apiApps.map(apiAppToOption)
+    return APP_OPTIONS
+  }, [apiApps])
+
+  const effectiveSelected = selectedApp ?? APP_OPTS[0]?.value ?? "payments-api"
+  const app = APP_OPTS.find(a => a.value === effectiveSelected) ?? APP_OPTS[0]
 
   return (
     <div className="min-h-full">
       <PageHeader
         title="Application 360°"
         description="Deep-dive health intelligence for a single application"
-        badge={<StatusBadge status={app.status} size="sm" />}
+        badge={<StatusBadge status={app?.status ?? "healthy"} size="sm" />}
         actions={
-          <Select value={selectedApp} onValueChange={setSelectedApp}>
+          <Select value={effectiveSelected} onValueChange={setSelectedApp}>
             <SelectTrigger className="w-52 h-8 text-sm font-mono">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {APP_OPTIONS.map(a => (
+              {APP_OPTS.map(a => (
                 <SelectItem key={a.value} value={a.value} className="font-mono text-sm">
                   {a.label}
                 </SelectItem>
@@ -62,8 +101,7 @@ export function Application360() {
       />
 
       <div className="px-6 pb-6 space-y-5">
-        {/* App hero card */}
-        <motion.div key={selectedApp} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        <motion.div key={effectiveSelected} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className="premium-card p-5">
           <div className="flex items-start gap-4 flex-wrap">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shrink-0">
@@ -71,25 +109,25 @@ export function Application360() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                <h2 className="text-lg font-bold font-mono text-foreground">{app.label}</h2>
-                <StatusBadge status={app.status} />
-                <Badge variant="secondary" size="sm">Production</Badge>
-                <Badge variant="outline" size="sm">{app.type}</Badge>
+                <h2 className="text-lg font-bold font-mono text-foreground">{app?.label}</h2>
+                <StatusBadge status={app?.status ?? "healthy"} />
+                <Badge variant="secondary" size="sm">{app?.runtime ?? "Production"}</Badge>
+                <Badge variant="outline" size="sm">{app?.type}</Badge>
                 <Badge variant="outline" size="sm" className={cn(
                   "font-mono",
-                  app.criticality === "P0" ? "border-red-500/40 text-red-500" :
-                  app.criticality === "P1" ? "border-amber-500/40 text-amber-500" : ""
-                )}>{app.criticality}</Badge>
+                  app?.criticality === "P0" ? "border-red-500/40 text-red-500" :
+                  app?.criticality === "P1" ? "border-amber-500/40 text-amber-500" : ""
+                )}>{app?.criticality}</Badge>
               </div>
               <div className="text-sm text-muted-foreground">
-                {app.team} Team · {app.lang} · {app.version} · {app.runtime}
+                {app?.team} Team · {app?.lang} · {app?.version} · {app?.runtime}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="text-center px-4 py-2 rounded-xl bg-muted/40 border border-border/60">
                 <div className={cn("text-xl font-bold",
-                  app.score >= 90 ? "text-emerald-500" : app.score >= 70 ? "text-amber-500" : "text-red-500"
-                )}>{app.score}</div>
+                  (app?.score ?? 0) >= 90 ? "text-emerald-500" : (app?.score ?? 0) >= 70 ? "text-amber-500" : "text-red-500"
+                )}>{app?.score ?? "—"}</div>
                 <div className="text-[10px] text-muted-foreground">Health</div>
               </div>
               <Button variant="outline" size="sm" className="gap-2 text-xs">
@@ -102,7 +140,6 @@ export function Application360() {
           </div>
         </motion.div>
 
-        {/* 11-tab panel */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Tabs defaultValue="overview">
             <div className="overflow-x-auto">
@@ -115,17 +152,17 @@ export function Application360() {
               </TabsList>
             </div>
 
-            <TabsContent value="overview"><TabOverview /></TabsContent>
-            <TabsContent value="signals"><TabSignals /></TabsContent>
-            <TabsContent value="transactions"><TabTransactions /></TabsContent>
-            <TabsContent value="logs"><TabLogs /></TabsContent>
-            <TabsContent value="infra"><TabInfra /></TabsContent>
-            <TabsContent value="apis"><TabAPIs /></TabsContent>
-            <TabsContent value="dependencies"><TabDependencies /></TabsContent>
-            <TabsContent value="incidents"><TabIncidents /></TabsContent>
-            <TabsContent value="health-rules"><TabHealthRules /></TabsContent>
-            <TabsContent value="ai-summary"><TabAISummary /></TabsContent>
-            <TabsContent value="configuration"><TabConfiguration /></TabsContent>
+            <TabsContent value="overview"><TabOverview appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="signals"><TabSignals appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="transactions"><TabTransactions appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="logs"><TabLogs appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="infra"><TabInfra appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="apis"><TabAPIs appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="dependencies"><TabDependencies appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="incidents"><TabIncidents appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="health-rules"><TabHealthRules appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="ai-summary"><TabAISummary appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="configuration"><TabConfiguration appId={effectiveSelected} /></TabsContent>
           </Tabs>
         </motion.div>
       </div>

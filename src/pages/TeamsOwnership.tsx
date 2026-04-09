@@ -50,17 +50,6 @@ const TEAM_MEMBERS: Record<string, { initials: string; name: string; role: strin
   ],
 }
 
-const TEAMS = [
-  { name: "Platform", apps: ["api-gateway", "auth-service", "config-service", "secret-manager"], incidents: 1, health: "warning" as const, lead: "Alex Chen", tier: 1 },
-  { name: "Payments", apps: ["payments-api", "billing-service", "subscription-mgr", "invoice-engine"], incidents: 0, health: "healthy" as const, lead: "Rachel James", tier: 1 },
-  { name: "Commerce", apps: ["catalog-service", "cart-service", "order-mgr", "pricing-engine", "promotions"], incidents: 0, health: "healthy" as const, lead: "Tom Park", tier: 2 },
-  { name: "Discovery", apps: ["search-api", "recommendation-engine", "indexer"], incidents: 1, health: "critical" as const, lead: "Jake Moore", tier: 2 },
-  { name: "ML", apps: ["feature-store", "model-server", "training-pipeline"], incidents: 1, health: "degraded" as const, lead: "David Rodriguez", tier: 2 },
-  { name: "Logistics", apps: ["shipping-api", "tracking-service", "fulfillment"], incidents: 0, health: "healthy" as const, lead: "Fiona Walsh", tier: 3 },
-  { name: "Risk", apps: ["fraud-detection", "compliance-api", "audit-service"], incidents: 0, health: "healthy" as const, lead: "Miguel Pena", tier: 3 },
-  { name: "Analytics", apps: ["events-pipeline", "reporting-api", "warehouse-sync", "dashboard-api", "export-service", "data-quality", "metrics-store"], incidents: 0, health: "healthy" as const, lead: "Lucy Brown", tier: 3 },
-]
-
 const TIER_LABELS: Record<number, string> = {
   1: "Tier 1 — Mission Critical",
   2: "Tier 2 — Core",
@@ -167,7 +156,7 @@ export function TeamsOwnership() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {group.teams.map((team, i) => {
-                  const members = TEAM_MEMBERS[team.name] || []
+                  const members = MEMBERS_BY_TEAM[team.name] || []
                   const oncall = members.find(m => m.oncall)
                   return (
                     <motion.div
@@ -272,7 +261,7 @@ export function TeamsOwnership() {
 
               <div className="grid grid-cols-3 gap-0 border-b border-border divide-x divide-border">
                 {[
-                  { label: "Members", value: (TEAM_MEMBERS[selectedTeam.name] || []).length },
+                  { label: "Members", value: (MEMBERS_BY_TEAM[selectedTeam.name] || []).length },
                   { label: "Apps", value: selectedTeam.apps.length },
                   { label: "Incidents", value: selectedTeam.incidents },
                 ].map(s => (
@@ -304,12 +293,12 @@ export function TeamsOwnership() {
                   {activeTab === "members" && (
                     <motion.div key="members" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-muted-foreground">{(TEAM_MEMBERS[selectedTeam.name] || []).length} members</span>
+                        <span className="text-xs text-muted-foreground">{(MEMBERS_BY_TEAM[selectedTeam.name] || []).length} members</span>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
                           <UserPlus className="w-3 h-3" /> Add Member
                         </Button>
                       </div>
-                      {(TEAM_MEMBERS[selectedTeam.name] || []).map(m => (
+                      {(MEMBERS_BY_TEAM[selectedTeam.name] || []).map(m => (
                         <div key={m.email} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-muted/30 transition-colors group">
                           <Avatar className="w-8 h-8">
                             <AvatarFallback className="text-xs">{m.initials}</AvatarFallback>
@@ -356,7 +345,7 @@ export function TeamsOwnership() {
                     <motion.div key="oncall" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
                         <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3">Current On-call</div>
-                        {(TEAM_MEMBERS[selectedTeam.name] || []).filter(m => m.oncall).map(m => (
+                        {(MEMBERS_BY_TEAM[selectedTeam.name] || []).filter(m => m.oncall).map(m => (
                           <div key={m.email} className="flex items-center gap-3">
                             <Avatar className="w-9 h-9">
                               <AvatarFallback className="text-sm">{m.initials}</AvatarFallback>
@@ -375,7 +364,7 @@ export function TeamsOwnership() {
                       <div>
                         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rotation Schedule</div>
                         <div className="space-y-2">
-                          {(TEAM_MEMBERS[selectedTeam.name] || []).map((m, i) => (
+                          {(MEMBERS_BY_TEAM[selectedTeam.name] || []).map((m, i) => (
                             <div key={m.email} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30 transition-colors">
                               <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
                                 m.oncall ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"

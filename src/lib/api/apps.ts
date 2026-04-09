@@ -124,6 +124,7 @@ export interface AppHealthRule {
   version: number;
   last_triggered: string;
   description: string;
+  weight?: number;
 }
 
 export interface AppAiInsight {
@@ -160,5 +161,20 @@ export const getAppDependencies = (id: string) => api.get<AppDependency[]>(`/api
 export const getAppIncidents = (id: string) => api.get<AppIncident[]>(`/api/apps/${id}/incidents`);
 export const getAppRules = (id: string) => api.get<AppHealthRule[]>(`/api/apps/${id}/rules`);
 export const getAppAiSummary = (id: string) => api.get<AppAiInsight[]>(`/api/apps/${id}/ai-summary`);
-export const getAppConfiguration = (id: string) => api.get<Record<string, unknown>>(`/api/apps/${id}/configuration`);
+export interface AppConfiguration {
+  app_id: string;
+  name: string;
+  runtime: string;
+  version: string;
+  platform: string;
+  environment: string;
+  criticality: string;
+  tags: string[];
+  owner_name: string;
+  connectors: Array<{ id: string; name: string; category: string; status: string }>;
+  health_weights: { latency: number; errors: number; availability: number; infra: number; incidents: number };
+  thresholds: { latency_warn: number; latency_crit: number; error_rate_warn: number; error_rate_crit: number };
+}
+
+export const getAppConfiguration = (id: string) => api.get<AppConfiguration>(`/api/apps/${id}/configuration`);
 export const getAppHealthHistory = (id: string) => api.get<Array<{ label: string; score: number }>>(`/api/apps/${id}/health-history`);

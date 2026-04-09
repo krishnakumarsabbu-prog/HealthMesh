@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { getDependencyMap, type DependencyNode as ApiNode, type DependencyEdge } from "@/lib/api/misc"
 
 type NodeStatus = "healthy" | "warning" | "critical" | "degraded"
 type NodeType = "gateway" | "service" | "api" | "ml" | "database" | "cache" | "queue" | "external"
@@ -33,7 +35,7 @@ interface Connection {
   rps: number
 }
 
-const SERVICE_NODES: ServiceNode[] = [
+const STATIC_SERVICE_NODES: ServiceNode[] = [
   { id: "gateway", name: "api-gateway", type: "gateway", status: "healthy", x: 60, y: 50, team: "Platform", env: "production", latency: 12, errorRate: 0.02, rps: 4200, version: "v3.2.1", uptime: "99.98%" },
   { id: "auth", name: "auth-service", type: "service", status: "warning", x: 220, y: 110, team: "Identity", env: "production", latency: 38, errorRate: 0.14, rps: 820, version: "v2.1.0", uptime: "99.91%" },
   { id: "payments", name: "payments-api", type: "api", status: "healthy", x: 220, y: 230, team: "Payments", env: "production", latency: 68, errorRate: 0.03, rps: 340, version: "v4.0.2", uptime: "99.99%" },
@@ -46,7 +48,7 @@ const SERVICE_NODES: ServiceNode[] = [
   { id: "external-stripe", name: "stripe-api", type: "external", status: "healthy", x: 60, y: 230, team: "External", env: "external", latency: 120, errorRate: 0.00, rps: 180, version: "API v3", uptime: "99.95%" },
 ]
 
-const CONNECTIONS: Connection[] = [
+const STATIC_CONNECTIONS: Connection[] = [
   { from: "gateway", to: "auth", healthy: false, latency: 38, rps: 820 },
   { from: "gateway", to: "payments", healthy: true, latency: 68, rps: 340 },
   { from: "gateway", to: "catalog", healthy: true, latency: 24, rps: 1800 },
@@ -60,6 +62,38 @@ const CONNECTIONS: Connection[] = [
   { from: "catalog", to: "kafka", healthy: true, latency: 6, rps: 400 },
   { from: "search", to: "kafka", healthy: false, latency: 6, rps: 200 },
 ]
+
+function apiNodeToService(n: ApiNode): ServiceNode {
+  const latency = parseFloat(n.latency) || 0
+  const errorRate = parseFloat(n.error_rate) || 0
+  const rps = parseFloat(n.rps) || 0
+  return {
+    id: n.id,
+    name: n.label,
+    type: (n.node_type as NodeType) || "service",
+    status: (n.status as NodeStatus) || "healthy",
+    x: n.x,
+    y: n.y,
+    team: n.team || "Unknown",
+    env: "production",
+    latency,
+    errorRate,
+    rps,
+    version: n.version || "—",
+    uptime: n.uptime || "—",
+  }
+}
+
+function apiEdgeToConnection(e: DependencyEdge): Connection {
+  const latency = parseFloat(e.latency) || 0
+  return {
+    from: e.source_id,
+    to: e.target_id,
+    healthy: e.status === "healthy",
+    latency,
+    rps: 0,
+  }
+}
 
 const TYPE_ICON: Record<NodeType, React.ComponentType<{ className?: string }>> = {
   gateway: Globe,
@@ -89,9 +123,9 @@ const STATUS_ICON_COLOR: Record<NodeStatus, string> = {
 const ENV_FILTERS = ["All", "production", "staging", "development"]
 const SEVERITY_FILTERS = ["All", "critical", "degraded", "warning", "healthy"]
 
-function NodeDetailPanel({ node, onClose }: { node: ServiceNode; onClose: () => void }) {
-  const inbound = CONNECTIONS.filter(c => c.to === node.id)
-  const outbound = CONNECTIONS.filter(c => c.from === node.id)
+function NodeDetailPanel({ node, connections, allNodes, onClose }: { node: ServiceNode; connections: Connection[]; allNodes: ServiceNode[]; onClose: () => void }) {
+  const inbound = connections.filter(c => c.to === node.id)
+  const outbound = connections.filter(c => c.from === node.id)
 
   return (
     <motion.div
@@ -151,7 +185,7 @@ function NodeDetailPanel({ node, onClose }: { node: ServiceNode; onClose: () => 
             <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Inbound ({inbound.length})</div>
             <div className="space-y-1.5">
               {inbound.map(c => {
-                const fromNode = SERVICE_NODES.find(n => n.id === c.from)
+                const fromNode = allNodes.find(n => n.id === c.from)
                 return (
                   <div key={c.from} className="flex items-center gap-2 text-xs p-2 rounded-lg bg-muted/40">
                     <ArrowRight className="w-3 h-3 text-muted-foreground rotate-180 shrink-0" />
@@ -169,7 +203,7 @@ function NodeDetailPanel({ node, onClose }: { node: ServiceNode; onClose: () => 
             <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Outbound ({outbound.length})</div>
             <div className="space-y-1.5">
               {outbound.map(c => {
-                const toNode = SERVICE_NODES.find(n => n.id === c.to)
+                const toNode = allNodes.find(n => n.id === c.to)
                 return (
                   <div key={c.to} className="flex items-center gap-2 text-xs p-2 rounded-lg bg-muted/40">
                     <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -212,28 +246,43 @@ export function DependencyMap() {
   const [focusNode, setFocusNode] = useState<string | null>(null)
   const mapRef = useRef<HTMLDivElement>(null)
 
-  const filteredNodes = SERVICE_NODES.filter(n => {
+  const { data: mapData, refetch } = useApi(getDependencyMap, [])
+
+  const serviceNodes: ServiceNode[] = mapData && mapData.nodes.length > 0
+    ? mapData.nodes.map(apiNodeToService)
+    : STATIC_SERVICE_NODES
+
+  const connections: Connection[] = mapData && mapData.edges.length > 0
+    ? mapData.edges.map(apiEdgeToConnection)
+    : STATIC_CONNECTIONS
+
+  const stats = mapData?.stats
+
+  const filteredNodes = serviceNodes.filter(n => {
     if (envFilter !== "All" && n.env !== envFilter) return false
     if (severityFilter !== "All" && n.status !== severityFilter) return false
     if (focusNode) {
-      const connectedIds = CONNECTIONS.filter(c => c.from === focusNode || c.to === focusNode)
+      const connectedIds = connections.filter(c => c.from === focusNode || c.to === focusNode)
         .flatMap(c => [c.from, c.to])
       return connectedIds.includes(n.id)
     }
     return true
   })
 
-  const filteredConnections = CONNECTIONS.filter(c =>
+  const filteredConnections = connections.filter(c =>
     filteredNodes.find(n => n.id === c.from) && filteredNodes.find(n => n.id === c.to)
   )
 
   const blastAffected = blastMode
-    ? new Set(CONNECTIONS.filter(c => !c.healthy).flatMap(c => [c.from, c.to]))
+    ? new Set(connections.filter(c => !c.healthy).flatMap(c => [c.from, c.to]))
     : null
 
   const handleNodeClick = (node: ServiceNode) => {
     setSelectedNode(prev => prev?.id === node.id ? null : node)
   }
+
+  const criticalNodes = serviceNodes.filter(n => n.status === "critical").length
+  const degradedPaths = connections.filter(c => !c.healthy).length
 
   return (
     <div className="min-h-full">
@@ -250,7 +299,7 @@ export function DependencyMap() {
             >
               <AlertTriangle className="w-3.5 h-3.5" /> Blast Radius
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={refetch}>
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </Button>
           </div>
@@ -258,7 +307,6 @@ export function DependencyMap() {
       />
 
       <div className="px-6 pb-6 space-y-4">
-        {/* Filter Bar */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
@@ -300,7 +348,6 @@ export function DependencyMap() {
           )}
         </div>
 
-        {/* Legend */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground premium-card px-4 py-3 flex-wrap">
           <span className="font-semibold text-foreground">Legend:</span>
           {(["healthy", "warning", "critical", "degraded"] as NodeStatus[]).map(s => (
@@ -320,7 +367,6 @@ export function DependencyMap() {
           </span>
         </div>
 
-        {/* Map Canvas */}
         <div className="relative">
           <motion.div
             ref={mapRef}
@@ -330,7 +376,6 @@ export function DependencyMap() {
             className="premium-card overflow-hidden relative"
             style={{ height: 480 }}
           >
-            {/* Zoom Controls */}
             <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
               <button
                 onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
@@ -352,11 +397,10 @@ export function DependencyMap() {
               </button>
             </div>
 
-            {/* Mini-map */}
             <div className="absolute bottom-3 left-3 z-10 w-28 h-20 rounded-lg border border-border bg-card/80 backdrop-blur-sm overflow-hidden">
               <div className="text-[9px] text-muted-foreground px-2 pt-1 font-semibold uppercase tracking-wider">Overview</div>
               <svg className="absolute inset-0 w-full h-full" style={{ top: 12 }}>
-                {SERVICE_NODES.map(n => (
+                {serviceNodes.map(n => (
                   <circle
                     key={n.id}
                     cx={(n.x / 720) * 112}
@@ -369,7 +413,6 @@ export function DependencyMap() {
               </svg>
             </div>
 
-            {/* SVG Connections */}
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
               style={{ zIndex: 0, transformOrigin: "center", transform: `scale(${zoom})` }}
@@ -411,7 +454,6 @@ export function DependencyMap() {
               })}
             </svg>
 
-            {/* Service Nodes */}
             <div style={{ transform: `scale(${zoom})`, transformOrigin: "top left", position: "absolute", inset: 0 }}>
               {filteredNodes.map((node, i) => {
                 const Icon = TYPE_ICON[node.type] || Server
@@ -466,7 +508,6 @@ export function DependencyMap() {
             </div>
           </motion.div>
 
-          {/* Detail Panel Overlay */}
           <AnimatePresence>
             {selectedNode && (
               <>
@@ -477,20 +518,24 @@ export function DependencyMap() {
                   className="fixed inset-0 z-40"
                   onClick={() => setSelectedNode(null)}
                 />
-                <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+                <NodeDetailPanel
+                  node={selectedNode}
+                  connections={connections}
+                  allNodes={serviceNodes}
+                  onClose={() => setSelectedNode(null)}
+                />
               </>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Stats Strip */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Total Services", value: "247" },
-            { label: "Active Connections", value: "1,824" },
-            { label: "Degraded Paths", value: "3", warn: true },
-            { label: "Critical Nodes", value: "1", warn: true },
-            { label: "Avg Hop Latency", value: "12ms" },
+            { label: "Total Services", value: stats ? String(stats.total_services) : String(serviceNodes.length) },
+            { label: "Active Connections", value: stats ? String(stats.total_connections) : String(connections.length) },
+            { label: "Degraded Paths", value: stats ? String(stats.degraded_paths) : String(degradedPaths), warn: (stats?.degraded_paths ?? degradedPaths) > 0 },
+            { label: "Critical Nodes", value: stats ? String(stats.critical_nodes) : String(criticalNodes), warn: (stats?.critical_nodes ?? criticalNodes) > 0 },
+            { label: "Avg Hop Latency", value: `${Math.round(connections.reduce((a, c) => a + c.latency, 0) / Math.max(connections.length, 1))}ms` },
           ].map((s, i) => (
             <motion.div
               key={i}
@@ -505,7 +550,6 @@ export function DependencyMap() {
           ))}
         </div>
 
-        {/* Node List Table */}
         <div className="premium-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Service Registry</span>

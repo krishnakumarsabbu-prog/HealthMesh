@@ -1,10 +1,12 @@
 import { motion } from "framer-motion"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
-import { TriangleAlert as AlertTriangle, TrendingUp, TrendingDown, Minus, Search } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { LOG_PATTERNS, ERROR_RATE_24H } from "./data"
+import { LOG_PATTERNS } from "./data"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
+import { useApi } from "@/hooks/useApi"
+import { getAppLogs, type AppLogPattern } from "@/lib/api/apps"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -26,12 +28,33 @@ const HOURLY_ERRORS = Array.from({ length: 24 }, (_, i) => ({
   errors: Math.max(0, Math.round(3 + Math.cos(i * 0.5) * 3 + Math.random() * 4)),
 }))
 
-export function TabLogs() {
-  const [search, setSearch] = useState("")
+type LogEntry = { level: string; pattern: string; count: number; first: string; last: string; trend: string }
 
-  const filtered = LOG_PATTERNS.filter(l =>
+function apiLogToEntry(l: AppLogPattern): LogEntry {
+  return {
+    level: l.level.toUpperCase(),
+    pattern: l.message,
+    count: l.count,
+    first: l.first_seen || "—",
+    last: l.last_seen || "—",
+    trend: "stable",
+  }
+}
+
+export function TabLogs({ appId }: { appId: string }) {
+  const [search, setSearch] = useState("")
+  const { data: apiLogs } = useApi(() => getAppLogs(appId), [appId])
+
+  const logPatterns: LogEntry[] = apiLogs && apiLogs.length > 0
+    ? apiLogs.map(apiLogToEntry)
+    : LOG_PATTERNS
+
+  const filtered = logPatterns.filter(l =>
     l.pattern.toLowerCase().includes(search.toLowerCase())
   )
+
+  const errorCount = logPatterns.filter(l => l.level === "ERROR").length
+  const warnCount = logPatterns.filter(l => l.level === "WARN").length
 
   return (
     <div className="space-y-4">
@@ -48,14 +71,13 @@ export function TabLogs() {
           </ResponsiveContainer>
         </div>
         <div className="premium-card p-5">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Error Rate — 24h</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Log Summary</div>
           <div className="space-y-2 mt-3">
             {[
-              { label: "Total Log Lines", value: "1.84M" },
-              { label: "Error Lines", value: "423" },
-              { label: "Warn Lines", value: "2,140" },
-              { label: "Unique Patterns", value: "17" },
-              { label: "Error Rate", value: "0.023%" },
+              { label: "Total Patterns", value: String(logPatterns.length) },
+              { label: "Error Patterns", value: String(errorCount) },
+              { label: "Warn Patterns", value: String(warnCount) },
+              { label: "Unique Levels", value: String(new Set(logPatterns.map(l => l.level)).size) },
             ].map((s, i) => (
               <div key={i} className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{s.label}</span>
@@ -66,7 +88,6 @@ export function TabLogs() {
         </div>
       </div>
 
-      {/* Log pattern groups */}
       <div className="premium-card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Error / Warn Patterns</div>
@@ -79,7 +100,7 @@ export function TabLogs() {
           {filtered.map((log, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
               className="flex items-start gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors">
-              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 mt-0.5", LEVEL_STYLE[log.level])}>
+              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 mt-0.5", LEVEL_STYLE[log.level] || "bg-muted text-muted-foreground")}>
                 {log.level}
               </span>
               <div className="flex-1 min-w-0">
