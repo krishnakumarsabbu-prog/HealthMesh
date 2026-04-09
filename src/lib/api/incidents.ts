@@ -32,5 +32,11 @@ export interface Alert {
 }
 
 export const listIncidents = () => api.get<Incident[]>("/api/incidents");
+export const listIncidentsByStatus = (status: string) => api.get<Incident[]>(`/api/incidents?status=${status}`);
 export const getIncident = (id: string) => api.get<Incident>(`/api/incidents/${id}`);
+export const updateIncident = (id: string, body: Partial<Incident>) => api.put<Incident>(`/api/incidents/${id}`, body);
+export const acknowledgeIncident = (id: string) => api.put<Incident>(`/api/incidents/${id}`, { status: "acknowledged" });
+export const resolveIncident = (id: string) => api.put<Incident>(`/api/incidents/${id}`, { status: "resolved" });
 export const listAlerts = () => api.get<Alert[]>("/api/alerts");
+export const listAlertsByStatus = (status: string) => api.get<Alert[]>(`/api/alerts?status=${status}`);
+export const acknowledgeAlert = (id: string) => api.put<Alert>(`/api/alerts/${id}`, { status: "acknowledged" });

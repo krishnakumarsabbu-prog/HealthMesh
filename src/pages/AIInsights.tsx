@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { LineChart, Line, ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis } from "recharts"
 import { useApi } from "@/hooks/useApi"
 import { listAiInsights, type AiInsight as ApiAiInsight } from "@/lib/api/misc"
+import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type InsightEntry = {
   type: string; priority: string; title: string; desc: string; confidence: number;
@@ -139,7 +140,7 @@ export function AIInsights() {
   const [isThinking, setIsThinking] = useState(false)
   const [expandedInsight, setExpandedInsight] = useState<number | null>(null)
 
-  const { data: apiInsights } = useApi(listAiInsights)
+  const { data: apiInsights, loading: insightsLoading } = useApi(listAiInsights)
   const INSIGHTS: InsightEntry[] = apiInsights && apiInsights.length > 0
     ? apiInsights.map(apiToInsight)
     : STATIC_INSIGHTS
@@ -292,6 +293,10 @@ export function AIInsights() {
             ))}
           </div>
         </div>
+
+        {insightsLoading && !apiInsights && (
+          <LoadingShimmer rows={4} className="px-0 pt-0" />
+        )}
 
         <div className="space-y-3">
           {filtered.map((insight, i) => {

@@ -1,7 +1,10 @@
+import { useState } from "react"
 import { motion } from "framer-motion"
 import { CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Activity, Server, Database, Zap, Globe, Clock, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/hooks/useApi"
+import { getSystemStatus } from "@/lib/api/misc"
 
 type ServiceStatus = "operational" | "degraded" | "outage" | "maintenance"
 
@@ -12,7 +15,18 @@ const STATUS_META: Record<ServiceStatus, { label: string; color: string; bg: str
   maintenance: { label: "Maintenance", color: "text-primary", bg: "bg-primary/8", border: "border-primary/20", dotClass: "bg-primary" },
 }
 
-const PLATFORM_SERVICES = [
+const ICON_MAP: Record<string, React.ElementType> = {
+  ingestion: Activity,
+  health: Zap,
+  ai: Zap,
+  storage: Database,
+  alert: Globe,
+  connector: Server,
+  api: Globe,
+  audit: Clock,
+}
+
+const STATIC_SERVICES = [
   { name: "Data Ingestion Pipeline", icon: Activity, status: "operational" as ServiceStatus, latency: "42ms", uptime: "99.99%" },
   { name: "Health Score Engine", icon: Zap, status: "operational" as ServiceStatus, latency: "18ms", uptime: "99.98%" },
   { name: "AI Inference Service", icon: Zap, status: "degraded" as ServiceStatus, latency: "380ms", uptime: "99.72%" },
@@ -21,10 +35,6 @@ const PLATFORM_SERVICES = [
   { name: "Connector Sync Workers", icon: Server, status: "operational" as ServiceStatus, latency: "28ms", uptime: "99.95%" },
   { name: "API Gateway", icon: Globe, status: "operational" as ServiceStatus, latency: "14ms", uptime: "99.99%" },
   { name: "Audit Log Service", icon: Clock, status: "operational" as ServiceStatus, latency: "22ms", uptime: "99.96%" },
-]
-
-const INCIDENTS = [
-  { id: "si-001", title: "AI Inference elevated latency", status: "investigating", started: "14:18 UTC", impact: "Recommendation features affected" },
 ]
 
 const UPTIME_HISTORY = Array.from({ length: 90 }, (_, i) => ({
@@ -46,7 +56,25 @@ function UptimeBar({ history }: { history: typeof UPTIME_HISTORY }) {
 }
 
 export function SystemStatus() {
-  const allOperational = PLATFORM_SERVICES.filter(s => s.status !== "operational").length === 0
+  const [refreshKey, setRefreshKey] = useState(0)
+  const { data: statusData, loading, refetch } = useApi(getSystemStatus)
+
+  const dbStatus = statusData?.database === "connected" ? "operational" : "degraded"
+  const overallOperational = dbStatus === "operational"
+
+  const dynamicServices = statusData ? [
+    { name: "API Server", icon: Globe, status: "operational" as ServiceStatus, latency: "14ms", uptime: "99.99%" },
+    { name: "Database", icon: Database, status: dbStatus as ServiceStatus, latency: "8ms", uptime: "99.98%" },
+  ] : null
+
+  const services = dynamicServices ?? STATIC_SERVICES
+
+  const handleRefresh = () => {
+    setRefreshKey(k => k + 1)
+    refetch()
+  }
+
+  const counts = statusData?.counts
 
   return (
     <div className="space-y-5">
@@ -55,59 +83,54 @@ export function SystemStatus() {
           <div className="text-sm font-bold text-foreground mb-0.5">System Status</div>
           <div className="text-xs text-muted-foreground">Real-time health of the HealthMesh platform infrastructure</div>
         </div>
-        <Button size="sm" variant="outline" className="gap-2">
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+        <Button size="sm" variant="outline" className="gap-2" onClick={handleRefresh} disabled={loading}>
+          <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} /> Refresh
         </Button>
       </div>
 
-      {/* Overall status banner */}
       <motion.div
+        key={refreshKey}
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn("rounded-xl border p-4 flex items-center gap-3",
-          allOperational ? "bg-emerald-500/8 border-emerald-500/20" : "bg-amber-500/8 border-amber-500/20"
+          overallOperational ? "bg-emerald-500/8 border-emerald-500/20" : "bg-amber-500/8 border-amber-500/20"
         )}
       >
-        {allOperational
+        {overallOperational
           ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
           : <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
         }
         <div>
-          <div className={cn("font-bold text-sm", allOperational ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
-            {allOperational ? "All Systems Operational" : "Partial Service Degradation"}
+          <div className={cn("font-bold text-sm", overallOperational ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+            {overallOperational ? "All Systems Operational" : "Partial Service Degradation"}
           </div>
           <div className="text-xs text-muted-foreground">Last updated: just now · Next check in 60s</div>
         </div>
-        <div className={cn("ml-auto w-2 h-2 rounded-full", allOperational ? "bg-emerald-500 animate-pulse" : "bg-amber-500 animate-pulse")} />
+        <div className={cn("ml-auto w-2 h-2 rounded-full", overallOperational ? "bg-emerald-500 animate-pulse" : "bg-amber-500 animate-pulse")} />
       </motion.div>
 
-      {/* Active incidents */}
-      {INCIDENTS.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Incidents</div>
-          {INCIDENTS.map(inc => (
-            <div key={inc.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                <span className="font-semibold text-sm text-foreground">{inc.title}</span>
-                <span className="ml-auto text-[10px] font-semibold text-amber-500 capitalize">{inc.status}</span>
-              </div>
-              <div className="flex gap-3 text-xs text-muted-foreground">
-                <span>Started: {inc.started}</span>
-                <span>{inc.impact}</span>
-              </div>
+      {counts && (
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "Applications", value: counts.applications },
+            { label: "Active Incidents", value: counts.incidents },
+            { label: "Active Alerts", value: counts.alerts },
+            { label: "Connectors", value: counts.connectors },
+          ].map((s, i) => (
+            <div key={i} className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 text-center">
+              <div className="text-xl font-bold text-foreground">{s.value}</div>
+              <div className="text-[10px] text-muted-foreground">{s.label}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Services */}
       <div className="rounded-xl border border-border/60 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/60 bg-muted/20">
           <span className="text-xs font-semibold text-foreground">Platform Services</span>
         </div>
         <div className="divide-y divide-border/40">
-          {PLATFORM_SERVICES.map((svc, i) => {
+          {services.map((svc, i) => {
             const meta = STATUS_META[svc.status]
             const Icon = svc.icon
             return (
@@ -135,7 +158,6 @@ export function SystemStatus() {
         </div>
       </div>
 
-      {/* 90-day uptime */}
       <div className="rounded-xl border border-border/60 p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold text-foreground">90-Day Platform Uptime</span>
@@ -153,7 +175,6 @@ export function SystemStatus() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Platform Uptime (90d)", value: "99.94%" },

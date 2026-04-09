@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 import { useState, useEffect } from "react"
-import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, TrendingUp, TrendingDown, Zap, Shield, ArrowUpRight, Sparkles, RefreshCw, Server, ChevronRight, Circle as XCircle, CircleAlert as AlertCircle, Flame, ArrowRight } from "lucide-react"
+import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, TrendingDown, Shield, ArrowUpRight, Sparkles, RefreshCw, Server, ChevronRight, Circle as XCircle, CircleAlert as AlertCircle, Flame, ArrowRight } from "lucide-react"
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
   BarChart, Bar
@@ -14,13 +14,13 @@ import { useApi } from "@/hooks/useApi"
 import { getDashboardOverview } from "@/lib/api/dashboard"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
-const INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
+const FALLBACK_INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
   d: `D${i + 1}`,
   critical: Math.max(0, Math.round(2 + Math.cos(i * 0.5) * 1.5)),
   warning: Math.max(0, Math.round(5 + Math.sin(i * 0.4) * 3)),
 }))
 
-const SPARKLINES: Record<string, number[]> = {
+const FALLBACK_SPARKLINES: Record<string, number[]> = {
   score: [88, 91, 89, 93, 90, 94, 91, 95, 92, 91, 94, 91],
   latency: [102, 98, 110, 95, 89, 87, 92, 85, 83, 87, 82, 87],
   incidents: [8, 6, 9, 5, 7, 4, 6, 3, 5, 4, 3, 3],
@@ -100,12 +100,6 @@ const TOOLTIP_STYLE = {
 
 const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } }
 
-function getScoreColor(status: string) {
-  if (status === "critical") return "#ef4444"
-  if (status === "warning") return "#f59e0b"
-  return "#10b981"
-}
-
 export function ExecutiveOverview() {
   const [refreshing, setRefreshing] = useState(false)
   const [envFilter, setEnvFilter] = useState("All")
@@ -146,6 +140,23 @@ export function ExecutiveOverview() {
   const connectorHealth = overview?.connector_health ?? []
   const aiHighlights = overview?.ai_highlights ?? []
   const heatmapData = overview?.heatmap_data ?? []
+
+  const incidentTrend = health24h.length >= 14
+    ? health24h.slice(-14).map((h, i) => ({
+        d: `D${i + 1}`,
+        critical: Math.max(0, h.incidents > 2 ? Math.round(h.incidents * 0.4) : 0),
+        warning: Math.max(0, h.incidents > 0 ? Math.round(h.incidents * 0.6) : 0),
+      }))
+    : FALLBACK_INCIDENT_TREND
+
+  const sparklines: Record<string, number[]> = health24h.length >= 12
+    ? {
+        score: health24h.slice(-12).map(h => h.healthy),
+        latency: FALLBACK_SPARKLINES.latency,
+        incidents: health24h.slice(-12).map(h => h.incidents),
+        uptime: health24h.slice(-12).map(h => Math.min(100, 99 + (h.healthy - 90) * 0.1)),
+      }
+    : FALLBACK_SPARKLINES
 
   const SUMMARY = [
     { label: "Total Apps", value: total, icon: <Server className="w-4 h-4" />, color: "text-foreground", bg: "" },
@@ -322,10 +333,10 @@ export function ExecutiveOverview() {
         {/* ── KPI Trend Cards with Sparklines ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Health Score", value: avgScore, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: SPARKLINES.score, decimals: 1 },
-            { label: "Avg Response Time", value: avgLatency, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: SPARKLINES.latency },
-            { label: "Open Incidents", value: activeIncidents, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: SPARKLINES.incidents },
-            { label: "System Uptime", value: uptime, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: SPARKLINES.uptime, decimals: 2 },
+            { label: "Health Score", value: avgScore, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: sparklines.score, decimals: 1 },
+            { label: "Avg Response Time", value: avgLatency, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: sparklines.latency },
+            { label: "Open Incidents", value: activeIncidents, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: sparklines.incidents },
+            { label: "System Uptime", value: uptime, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: sparklines.uptime, decimals: 2 },
           ].map((card, i) => (
             <motion.div key={card.label}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -476,7 +487,7 @@ export function ExecutiveOverview() {
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">37% fewer incidents vs last period</span>
             </div>
             <ResponsiveContainer width="100%" height={130}>
-              <BarChart data={INCIDENT_TREND} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
+              <BarChart data={incidentTrend} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
                 <XAxis dataKey="d" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={3} />
                 <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                 <Tooltip {...TOOLTIP_STYLE} />

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import { listHealthRules, type HealthRule as ApiHealthRule } from "@/lib/api/misc"
+import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 type RuleCondition = { metric: string; operator: string; value: string; unit: string }
 type Rule = {
@@ -241,7 +242,7 @@ export function HealthRules() {
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null)
   const [localEnabled, setLocalEnabled] = useState<Record<number, boolean>>({})
 
-  const { data: apiRules } = useApi(listHealthRules, [])
+  const { data: apiRules, loading: rulesLoading } = useApi(listHealthRules, [])
 
   const baseRules: Rule[] = apiRules && apiRules.length > 0
     ? apiRules.map((r, i) => apiToRule(r, i))
@@ -314,6 +315,7 @@ export function HealthRules() {
           <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
             <span>Rule</span><span>Condition</span><span>Severity</span><span>Scope</span><span>Triggers (24h)</span><span></span>
           </div>
+          {rulesLoading && !apiRules && <LoadingShimmer rows={5} />}
           <div className="divide-y divide-border/40">
             {filtered.map((rule, i) => (
               <motion.div key={rule.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}

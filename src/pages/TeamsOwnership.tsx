@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import { listTeams, type Team as ApiTeam } from "@/lib/api/misc"
+import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 
 const TEAM_MEMBERS: Record<string, { initials: string; name: string; role: string; email: string; oncall: boolean }[]> = {
   "Platform": [
@@ -70,7 +71,7 @@ export function TeamsOwnership() {
   const [selectedTeam, setSelectedTeam] = useState<TeamEntry | null>(null)
   const [activeTab, setActiveTab] = useState<"members" | "apps" | "oncall">("members")
 
-  const { data: apiTeams } = useApi(listTeams)
+  const { data: apiTeams, loading: teamsLoading } = useApi(listTeams)
 
   const TEAMS: TeamEntry[] = apiTeams && apiTeams.length > 0
     ? apiTeams.map(apiToTeam)
@@ -145,6 +146,7 @@ export function TeamsOwnership() {
         </div>
 
         {/* Teams by tier */}
+        {teamsLoading && !apiTeams && <LoadingShimmer rows={6} className="px-0 pt-0" />}
         <div className="space-y-6">
           {tierGroups.map(group => (
             <div key={group.tier}>

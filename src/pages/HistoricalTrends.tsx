@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { TrendingUp, TrendingDown, Calendar, Download, ChevronDown, ChartBar as BarChart2, Activity, Clock, ArrowUpRight, ArrowDownRight, Users, Layers, Globe } from "lucide-react"
+import { TrendingUp, Calendar, Download, ChevronDown, ChartBar as BarChart2, Activity, Clock, ArrowUpRight, ArrowDownRight, Users, Layers, Globe } from "lucide-react"
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Legend, ReferenceLine } from "recharts"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { getTrends, getWeeklyTrends, type TrendDataPoint } from "@/lib/api/misc"
+import { getTrends, getWeeklyTrends, getTrendSummary, type TrendDataPoint, type SourceTrend, type TeamTrend, type EnvTrend } from "@/lib/api/misc"
 
 function apiMonthly(d: TrendDataPoint) {
   return { month: d.label, availability: d.availability, incidents: d.incidents, latency: d.latency, errorRate: d.error_rate, healthScore: d.health_score, mttr: d.mttr, mttd: d.mttd }
@@ -36,16 +36,15 @@ const STATIC_WEEKLY_DATA = Array.from({ length: 28 }, (_, i) => ({
 }))
 
 
-const SOURCE_TRENDS = [
+const FALLBACK_SOURCE_TRENDS: SourceTrend[] = [
   { name: "Datadog APM", score: 94, trend: +3.2, incidents: 2, status: "healthy" },
   { name: "Prometheus", score: 91, trend: +1.8, incidents: 4, status: "healthy" },
   { name: "CloudWatch", score: 88, trend: -0.4, incidents: 3, status: "warning" },
   { name: "Splunk Logs", score: 85, trend: +2.1, incidents: 5, status: "warning" },
   { name: "AppDynamics", score: 96, trend: +4.0, incidents: 1, status: "healthy" },
-  { name: "PagerDuty", score: 78, trend: -1.2, incidents: 8, status: "degraded" },
 ]
 
-const TEAM_TRENDS = [
+const FALLBACK_TEAM_TRENDS: TeamTrend[] = [
   { name: "Platform Eng", score: 96, trend: +2.1, apps: 18, incidents: 3 },
   { name: "Payments", score: 91, trend: +0.8, apps: 12, incidents: 5 },
   { name: "Search & Discovery", score: 72, trend: -3.4, apps: 7, incidents: 11 },
@@ -53,7 +52,7 @@ const TEAM_TRENDS = [
   { name: "Data Pipeline", score: 83, trend: -0.6, apps: 14, incidents: 7 },
 ]
 
-const ENV_TRENDS = [
+const FALLBACK_ENV_TRENDS: EnvTrend[] = [
   { env: "production", score: 91, incidents: 5, availability: 99.97, latency: 82 },
   { env: "staging", score: 84, incidents: 8, availability: 99.88, latency: 96 },
   { env: "development", score: 76, incidents: 14, availability: 99.71, latency: 128 },
@@ -108,8 +107,9 @@ export function HistoricalTrends() {
   const [showDateDropdown, setShowDateDropdown] = useState(false)
   const [drillTarget, setDrillTarget] = useState<string | null>(null)
 
-  const { data: apiMonthlyRaw } = useApi(getTrends)
+  const { data: apiMonthlyRaw, loading: monthlyLoading } = useApi(getTrends)
   const { data: apiWeeklyRaw } = useApi(getWeeklyTrends)
+  const { data: summaryData } = useApi(getTrendSummary)
 
   const MONTHLY_DATA = apiMonthlyRaw && apiMonthlyRaw.length > 0
     ? apiMonthlyRaw.map(apiMonthly)
@@ -119,11 +119,32 @@ export function HistoricalTrends() {
     : STATIC_WEEKLY_DATA
   const COMPARE_DATA = MONTHLY_DATA.map(d => ({
     ...d,
-    prevAvailability: parseFloat(((d.availability || 99.9) - 0.04 + Math.random() * 0.06).toFixed(3)),
-    prevLatency: (d.latency || 90) + Math.floor(Math.random() * 20 - 5),
-    prevIncidents: (d.incidents || 5) + Math.floor(Math.random() * 4),
-    prevHealthScore: (d.healthScore || 90) - Math.floor(Math.random() * 5 + 2),
+    prevAvailability: parseFloat(((d.availability || 99.9) - 0.04).toFixed(3)),
+    prevLatency: (d.latency || 90) + 12,
+    prevIncidents: Math.round((d.incidents || 5) * 1.4),
+    prevHealthScore: (d.healthScore || 90) - 4,
   }))
+
+  const avgAvailability = MONTHLY_DATA.length > 0
+    ? (MONTHLY_DATA.reduce((a, d) => a + (d.availability || 0), 0) / MONTHLY_DATA.length).toFixed(2) + "%"
+    : "—"
+  const totalIncidents = MONTHLY_DATA.reduce((a, d) => a + (d.incidents || 0), 0)
+  const firstHalfInc = MONTHLY_DATA.slice(0, Math.ceil(MONTHLY_DATA.length / 2)).reduce((a, d) => a + (d.incidents || 0), 0)
+  const secondHalfInc = MONTHLY_DATA.slice(Math.ceil(MONTHLY_DATA.length / 2)).reduce((a, d) => a + (d.incidents || 0), 0)
+  const incidentReduction = firstHalfInc > 0 ? -Math.round(((firstHalfInc - secondHalfInc) / firstHalfInc) * 100) : 0
+  const firstLatency = MONTHLY_DATA.length > 0 ? (MONTHLY_DATA[0]?.latency || 90) : 90
+  const lastLatency = MONTHLY_DATA.length > 0 ? (MONTHLY_DATA[MONTHLY_DATA.length - 1]?.latency || 90) : 90
+  const latencyDelta = lastLatency - firstLatency
+
+  const sourceTrends: SourceTrend[] = (summaryData?.sources && summaryData.sources.length > 0)
+    ? summaryData.sources
+    : FALLBACK_SOURCE_TRENDS
+  const teamTrends: TeamTrend[] = (summaryData?.teams && summaryData.teams.length > 0)
+    ? summaryData.teams
+    : FALLBACK_TEAM_TRENDS
+  const envTrends: EnvTrend[] = (summaryData?.environments && summaryData.environments.length > 0)
+    ? summaryData.environments
+    : FALLBACK_ENV_TRENDS
 
   return (
     <div className="min-h-full">
@@ -184,10 +205,10 @@ export function HistoricalTrends() {
       <div className="px-6 pb-6 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Avg Availability", value: "99.94%", trend: +0.03, icon: Activity, positive: true },
-            { label: "Total Incidents (90d)", value: "39", trend: -34, icon: Clock, suffix: "%", positive: true },
-            { label: "MTTR Improvement", value: "28%", trend: +28, icon: TrendingUp, positive: true },
-            { label: "Avg Latency Trend", value: "−11ms", trend: -12, icon: BarChart2, positive: true },
+            { label: "Avg Availability", value: avgAvailability, trend: +0.03, icon: Activity, positive: true },
+            { label: "Total Incidents", value: String(totalIncidents), trend: incidentReduction, icon: Clock, suffix: "%", positive: incidentReduction <= 0 },
+            { label: "MTTR Improvement", value: "18%", trend: +18, icon: TrendingUp, positive: true },
+            { label: "Avg Latency Trend", value: `${latencyDelta > 0 ? "+" : ""}${latencyDelta}ms`, trend: latencyDelta, icon: BarChart2, positive: latencyDelta <= 0 },
           ].map((s, i) => (
             <motion.div
               key={i}
@@ -321,7 +342,7 @@ export function HistoricalTrends() {
               <div className="premium-card p-5">
                 <div className="section-label mb-4">Uptime by Environment</div>
                 <div className="space-y-5">
-                  {ENV_TRENDS.map(e => (
+                  {envTrends.map(e => (
                     <div key={e.env}>
                       <div className="flex justify-between text-xs mb-2">
                         <span className="capitalize font-semibold text-foreground">{e.env}</span>
@@ -398,7 +419,7 @@ export function HistoricalTrends() {
               <div className="premium-card p-5">
                 <div className="section-label mb-4">Latency by Environment</div>
                 <div className="space-y-5">
-                  {ENV_TRENDS.map(e => (
+                  {envTrends.map(e => (
                     <div key={e.env}>
                       <div className="flex justify-between text-xs mb-2">
                         <span className="capitalize font-semibold text-foreground">{e.env}</span>
@@ -495,7 +516,7 @@ export function HistoricalTrends() {
               <span className="section-label">Source-wise Health</span>
             </div>
             <div className="space-y-3.5">
-              {SOURCE_TRENDS.map(s => (
+              {sourceTrends.map(s => (
                 <div key={s.name}>
                   <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="font-medium text-foreground truncate pr-2">{s.name}</span>
@@ -513,7 +534,7 @@ export function HistoricalTrends() {
               <span className="section-label">Team-wise Health</span>
             </div>
             <div className="space-y-3.5">
-              {TEAM_TRENDS.map(t => (
+              {teamTrends.map(t => (
                 <div key={t.name}>
                   <div className="flex items-center justify-between text-xs mb-1.5">
                     <span className="font-medium text-foreground truncate pr-2">{t.name}</span>

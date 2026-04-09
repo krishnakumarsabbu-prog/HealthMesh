@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
-import { listIncidents, listAlerts, type Incident as ApiIncident, type Alert as ApiAlert } from "@/lib/api/incidents"
+import { listIncidents, listAlerts, acknowledgeIncident, resolveIncident, type Incident as ApiIncident, type Alert as ApiAlert } from "@/lib/api/incidents"
 
 const STATIC_INCIDENTS = [
   {
@@ -185,16 +185,45 @@ export function IncidentsAlerts() {
   const [search, setSearch] = useState("")
   const [selectedIncident, setSelectedIncident] = useState<IncidentEntry | null>(null)
   const [activeTab, setActiveTab] = useState<"incidents" | "alerts">("incidents")
+  const [actionLoading, setActionLoading] = useState<"ack" | "resolve" | null>(null)
+  const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
 
-  const { data: apiIncidents } = useApi(listIncidents)
+  const { data: apiIncidents, refetch: refetchIncidents } = useApi(listIncidents)
   const { data: apiAlerts } = useApi(listAlerts)
+
+  const handleAcknowledge = async (id: string) => {
+    setActionLoading("ack")
+    try {
+      await acknowledgeIncident(id)
+      setLocalUpdates(prev => ({ ...prev, [id]: "acknowledged" }))
+      setSelectedIncident(prev => prev ? { ...prev, status: "investigating" } : null)
+      refetchIncidents()
+    } catch {
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleResolve = async (id: string) => {
+    setActionLoading("resolve")
+    try {
+      await resolveIncident(id)
+      setLocalUpdates(prev => ({ ...prev, [id]: "resolved" }))
+      setSelectedIncident(prev => prev ? { ...prev, status: "resolved" } : null)
+      refetchIncidents()
+    } catch {
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   const staticIncidents: IncidentEntry[] = STATIC_INCIDENTS.map(i => ({
     ...i, sources: i.sources, owner: i.owner,
   }))
-  const INCIDENTS = apiIncidents && apiIncidents.length > 0
+  const INCIDENTS = (apiIncidents && apiIncidents.length > 0
     ? apiIncidents.map(apiToIncident)
     : staticIncidents
+  ).map(inc => localUpdates[inc.id] ? { ...inc, status: localUpdates[inc.id] } : inc)
   const ALERTS = apiAlerts && apiAlerts.length > 0
     ? apiAlerts.map(apiToAlert)
     : STATIC_ALERTS
@@ -512,11 +541,21 @@ export function IncidentsAlerts() {
               </div>
 
               <div className="border-t border-border/50 p-4 grid grid-cols-2 gap-2 bg-muted/10">
-                <Button variant="outline" size="sm" className="gap-2 text-xs">
-                  <CheckCircle className="w-3.5 h-3.5" /> Acknowledge
+                <Button
+                  variant="outline" size="sm" className="gap-2 text-xs"
+                  disabled={selectedIncident.status === "resolved" || actionLoading !== null}
+                  onClick={() => handleAcknowledge(selectedIncident.id)}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  {actionLoading === "ack" ? "Acknowledging…" : "Acknowledge"}
                 </Button>
-                <Button size="sm" className="gap-2 text-xs">
-                  <Zap className="w-3.5 h-3.5" /> Mark Resolved
+                <Button
+                  size="sm" className="gap-2 text-xs"
+                  disabled={selectedIncident.status === "resolved" || actionLoading !== null}
+                  onClick={() => handleResolve(selectedIncident.id)}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  {actionLoading === "resolve" ? "Resolving…" : "Mark Resolved"}
                 </Button>
               </div>
             </motion.div>
