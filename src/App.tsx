@@ -1,7 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { AppProvider } from "@/context/AppContext"
+import { AuthProvider } from "@/context/AuthContext"
 import { AppLayout } from "@/components/layout/AppLayout"
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
+import { Login } from "@/pages/Login"
 import { ExecutiveOverview } from "@/pages/ExecutiveOverview"
 import { ApplicationCatalog } from "@/pages/ApplicationCatalog"
 import { Application360 } from "@/pages/Application360"
@@ -23,31 +26,37 @@ import { SystemStatusPage } from "@/pages/SystemStatusPage"
 export default function App() {
   return (
     <ThemeProvider>
-      <AppProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route index element={<ExecutiveOverview />} />
-              <Route path="/catalog" element={<ApplicationCatalog />} />
-              <Route path="/app360" element={<Application360 />} />
-              <Route path="/connectors" element={<ConnectorHub />} />
-              <Route path="/incidents" element={<IncidentsAlerts />} />
-              <Route path="/dependencies" element={<DependencyMap />} />
-              <Route path="/ai-insights" element={<AIInsights />} />
-              <Route path="/health-rules" element={<HealthRules />} />
-              <Route path="/onboarding" element={<OnboardingStudio />} />
-              <Route path="/trends" element={<HistoricalTrends />} />
-              <Route path="/teams" element={<TeamsOwnership />} />
-              <Route path="/settings" element={<SettingsAdmin />} />
-              <Route path="/maintenance" element={<MaintenanceWindowsPage />} />
-              <Route path="/sla" element={<SLASettingsPage />} />
-              <Route path="/audit" element={<AuditLogsPage />} />
-              <Route path="/roles" element={<RolesPermissionsPage />} />
-              <Route path="/system-status" element={<SystemStatusPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route index element={<ExecutiveOverview />} />
+                  <Route path="/catalog" element={<ApplicationCatalog />} />
+                  <Route path="/app360" element={<Application360 />} />
+                  <Route path="/connectors" element={<ConnectorHub />} />
+                  <Route path="/incidents" element={<IncidentsAlerts />} />
+                  <Route path="/dependencies" element={<DependencyMap />} />
+                  <Route path="/ai-insights" element={<AIInsights />} />
+                  <Route path="/health-rules" element={<HealthRules />} />
+                  <Route path="/onboarding" element={<OnboardingStudio />} />
+                  <Route path="/trends" element={<HistoricalTrends />} />
+                  <Route path="/teams" element={<TeamsOwnership />} />
+                  <Route path="/settings" element={<SettingsAdmin />} />
+                  <Route path="/maintenance" element={<MaintenanceWindowsPage />} />
+                  <Route path="/sla" element={<SLASettingsPage />} />
+                  <Route path="/audit" element={<AuditLogsPage />} />
+                  <Route path="/roles" element={<RolesPermissionsPage />} />
+                  <Route path="/system-status" element={<SystemStatusPage />} />
+                </Route>
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AppProvider>
+      </AuthProvider>
     </ThemeProvider>
   )
 }

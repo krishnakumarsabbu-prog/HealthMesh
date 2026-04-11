@@ -10,6 +10,7 @@ from app.seed.data import (
     TREND_DATA_MONTHLY, TREND_DATA_WEEKLY,
     MAINTENANCE_WINDOWS, SLA_SETTINGS, AUDIT_LOGS, APP_SETTINGS_DATA,
 )
+from app.seed.identity_data import ROLES, LOBS, ORG_TEAMS, PROJECTS, APP_PROJECT_MAPPINGS, get_hashed_users
 from app.models import (
     Team, TeamMember, Environment, Application, AppHealthScore,
     AppSignal, AppTransaction, AppLogPattern, AppInfraPod,
@@ -20,6 +21,7 @@ from app.models import (
     DependencyNode, DependencyEdge,
     AiInsight, DashboardSnapshot, TrendDataPoint,
     MaintenanceWindow, SLASetting, AuditLog, AppSettings,
+    Role, Lob, OrgTeam, Project, User,
 )
 
 
@@ -29,9 +31,11 @@ def is_seeded(db: Session) -> bool:
 
 def seed_all(db: Session):
     print("Seeding database with realistic enterprise data...")
+    _seed_identity(db)
     _seed_teams(db)
     _seed_environments(db)
     _seed_applications(db)
+    _seed_app_project_mappings(db)
     _seed_app_data(db)
     _seed_connectors(db)
     _seed_health_rules(db)
@@ -43,6 +47,32 @@ def seed_all(db: Session):
     _seed_settings(db)
     db.commit()
     print("Seeding complete.")
+
+
+def _seed_identity(db: Session):
+    for r in ROLES:
+        db.add(Role(**r))
+    db.flush()
+    for l in LOBS:
+        db.add(Lob(**l))
+    db.flush()
+    for t in ORG_TEAMS:
+        db.add(OrgTeam(**t))
+    db.flush()
+    for p in PROJECTS:
+        db.add(Project(**p))
+    db.flush()
+    for u in get_hashed_users():
+        db.add(User(**u))
+    db.flush()
+
+
+def _seed_app_project_mappings(db: Session):
+    for app_id, project_id in APP_PROJECT_MAPPINGS.items():
+        app = db.query(Application).filter(Application.id == app_id).first()
+        if app:
+            app.project_id = project_id
+    db.flush()
 
 
 def _seed_teams(db: Session):

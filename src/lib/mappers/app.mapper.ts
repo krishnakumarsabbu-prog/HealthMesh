@@ -99,7 +99,7 @@ export function mapAppSignal(s: AppSignal): AppSignalModel {
 }
 
 export interface AppTransactionModel {
-  id: number; appId: string; endpoint: string
+  id: number; appId: string; endpoint: string; name: string
   rpm: number; latencyP99: number; errorRate: number; apdex: number; status: string
 }
 
@@ -108,6 +108,7 @@ export function mapAppTransaction(t: AppTransaction): AppTransactionModel {
     id: t.id,
     appId: safeString(t.app_id),
     endpoint: safeString(t.endpoint),
+    name: safeString(t.endpoint),
     rpm: safeNumber(t.rpm),
     latencyP99: safeNumber(t.latency_p99),
     errorRate: safeNumber(t.error_rate),
@@ -118,7 +119,7 @@ export function mapAppTransaction(t: AppTransaction): AppTransactionModel {
 
 export interface AppLogPatternModel {
   id: number; appId: string; level: string; pattern: string
-  count: number; firstSeen: string; lastSeen: string
+  count: number; firstSeen: string; lastSeen: string; trend: string
 }
 
 export function mapAppLogPattern(l: AppLogPattern): AppLogPatternModel {
@@ -130,6 +131,7 @@ export function mapAppLogPattern(l: AppLogPattern): AppLogPatternModel {
     count: safeNumber(l.count),
     firstSeen: formatRelativeTime(l.first_seen) || safeString(l.first_seen, "—"),
     lastSeen: formatRelativeTime(l.last_seen) || safeString(l.last_seen, "—"),
+    trend: "stable",
   }
 }
 
@@ -154,7 +156,7 @@ export function mapAppInfraPod(p: AppInfraPod): AppInfraPodModel {
 
 export interface AppDependencyModel {
   id: number; appId: string; name: string; depType: string
-  status: string; latencyMs: number; errorRate: number
+  status: string; latencyMs: number; errorRate: number; direction: string; rpm: number
 }
 
 export function mapAppDependency(d: AppDependency): AppDependencyModel {
@@ -166,13 +168,15 @@ export function mapAppDependency(d: AppDependency): AppDependencyModel {
     status: normalizeHealthStatus(d.status),
     latencyMs: parseNumeric(d.latency),
     errorRate: parseNumeric(d.error_rate),
+    direction: "downstream",
+    rpm: 0,
   }
 }
 
 export interface AppEndpointModel {
   id: number; appId: string; method: string; path: string
   status: string; rpm: number; latencyP99: number; errorRate: number
-  version: string; auth: string
+  availability: number; version: string; auth: string
 }
 
 export function mapAppEndpoint(e: AppEndpoint): AppEndpointModel {
@@ -185,6 +189,7 @@ export function mapAppEndpoint(e: AppEndpoint): AppEndpointModel {
     rpm: safeNumber(e.rpm),
     latencyP99: safeNumber(e.latency_p99),
     errorRate: safeNumber(e.error_rate),
+    availability: 100 - safeNumber(e.error_rate),
     version: safeString(e.version),
     auth: safeString(e.auth),
   }

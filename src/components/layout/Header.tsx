@@ -1,10 +1,12 @@
 import { useState } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, Circle, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap } from "lucide-react"
+import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
 import { useApp, ENVIRONMENTS } from "@/context/AppContext"
+import { useAuth } from "@/context/AuthContext"
+import { getRoleLabel, getRoleBadgeColor } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -37,10 +39,21 @@ const MOCK_NOTIFICATIONS = [
 export function Header() {
   const { theme, toggleTheme } = useTheme()
   const { currentEnvironment, setCurrentEnvironment, setCommandPaletteOpen, notificationsOpen, setNotificationsOpen } = useApp()
+  const { user, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchFocused, setSearchFocused] = useState(false)
 
   const pageMeta = PAGE_META[location.pathname] || { label: "Dashboard" }
+
+  const handleLogout = () => {
+    logout()
+    navigate("/login", { replace: true })
+  }
+
+  const userInitials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "U"
   const unreadCount = MOCK_NOTIFICATIONS.filter(n => n.type !== "healthy").length
 
   const notifIcon = (type: string) => {
@@ -216,16 +229,53 @@ export function Header() {
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-xl p-1 pl-2 hover:bg-accent/8 transition-all duration-150 group">
             <div className="hidden sm:block text-right">
-              <div className="text-xs font-semibold text-foreground leading-none">Alex Chen</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">Platform Admin</div>
+              <div className="text-xs font-semibold text-foreground leading-none">{user?.name ?? "User"}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {user ? getRoleLabel(user.role_id) : ""}
+              </div>
             </div>
             <Avatar className="w-7 h-7">
-              <AvatarFallback>AC</AvatarFallback>
+              <AvatarFallback>{userInitials}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuLabel>Account</DropdownMenuLabel>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col gap-1">
+              <span className="font-semibold text-foreground text-sm">{user?.name}</span>
+              <span className="text-[11px] text-muted-foreground truncate">{user?.email}</span>
+              {user && (
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded w-fit mt-0.5", getRoleBadgeColor(user.role_id))}>
+                  {getRoleLabel(user.role_id)}
+                </span>
+              )}
+            </div>
+          </DropdownMenuLabel>
+          {user && (user.lob_name || user.team_name) && (
+            <>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                {user.lob_name && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
+                    <Building2 className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{user.lob_name}</span>
+                  </div>
+                )}
+                {user.team_name && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
+                    <User className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{user.team_name}</span>
+                  </div>
+                )}
+                {user.project_name && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Settings className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{user.project_name}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem className="gap-2">
             <User className="w-3.5 h-3.5" /> Profile
@@ -234,7 +284,7 @@ export function Header() {
             <Settings className="w-3.5 h-3.5" /> Settings
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="gap-2 text-red-500 focus:text-red-500">
+          <DropdownMenuItem onClick={handleLogout} className="gap-2 text-red-500 focus:text-red-500">
             <LogOut className="w-3.5 h-3.5" /> Sign Out
           </DropdownMenuItem>
         </DropdownMenuContent>

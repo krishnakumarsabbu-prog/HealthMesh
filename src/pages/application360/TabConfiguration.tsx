@@ -85,8 +85,8 @@ export function TabConfiguration({ appId }: { appId: string }) {
           <div className="divide-y divide-border/40">
             {connectors.map((c, i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">
-                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0", c.iconBg)}>
-                  {c.abbr}
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 bg-muted">
+                  {c.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-foreground">{c.name}</div>

@@ -530,10 +530,10 @@ export function DependencyMap() {
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Total Services", value: stats ? String(stats.totalServices) : String(serviceNodes.length) },
-            { label: "Active Connections", value: stats ? String(stats.totalConnections) : String(connections.length) },
-            { label: "Degraded Paths", value: stats ? String(stats.degradedPaths) : String(degradedPaths), warn: (stats?.degradedPaths ?? degradedPaths) > 0 },
-            { label: "Critical Nodes", value: stats ? String(stats.criticalNodes) : String(criticalNodes), warn: (stats?.criticalNodes ?? criticalNodes) > 0 },
+            { label: "Total Services", value: stats ? String(stats.total_services) : String(serviceNodes.length) },
+            { label: "Active Connections", value: stats ? String(stats.total_connections) : String(connections.length) },
+            { label: "Degraded Paths", value: stats ? String(stats.degraded_paths) : String(degradedPaths), warn: (stats?.degraded_paths ?? degradedPaths) > 0 },
+            { label: "Critical Nodes", value: stats ? String(stats.critical_nodes) : String(criticalNodes), warn: (stats?.critical_nodes ?? criticalNodes) > 0 },
             { label: "Avg Hop Latency", value: `${Math.round(connections.reduce((a, c) => a + c.latency, 0) / Math.max(connections.length, 1))}ms` },
           ].map((s, i) => (
             <motion.div

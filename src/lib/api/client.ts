@@ -1,14 +1,23 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { getStoredToken } from "@/lib/auth"
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}: ${response.statusText}`);
+  const token = getStoredToken()
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  if (options?.headers) {
+    const extra = options.headers as Record<string, string>
+    Object.assign(headers, extra)
   }
-  return response.json() as Promise<T>;
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  })
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}: ${response.statusText}`)
+  }
+  return response.json() as Promise<T>
 }
 
 export const api = {
@@ -18,4 +27,4 @@ export const api = {
   put: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
-};
+}

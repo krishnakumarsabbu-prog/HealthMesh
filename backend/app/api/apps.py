@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.database.session import get_db
 from app.models import (
     Application, AppSignal, AppTransaction, AppLogPattern,
     AppInfraPod, AppDependency, AppEndpoint, AppHealthScore,
     Incident, HealthRule, AppHealthRule, AiInsight, ConnectorInstance
 )
+from app.models.identity import User, OrgTeam, Project
 from app.schemas.apps import ApplicationOut, ApplicationCreate
+from app.core.auth_deps import get_optional_user
 import math, random
 
 router = APIRouter(prefix="/api/apps", tags=["applications"])
@@ -21,8 +24,23 @@ def _generate_timeseries(base: float, points: int, noise: float = 5.0):
 
 
 @router.get("")
-def list_apps(db: Session = Depends(get_db)):
-    apps = db.query(Application).all()
+def list_apps(db: Session = Depends(get_db), current_user: Optional[User] = Depends(get_optional_user)):
+    query = db.query(Application)
+    if current_user:
+        role = current_user.role_id
+        if role == "USER" or role == "PROJECT_ADMIN":
+            if current_user.project_id:
+                query = query.filter(Application.project_id == current_user.project_id)
+        elif role == "TEAM_ADMIN":
+            if current_user.team_id:
+                team_project_ids = [p.id for p in db.query(Project).filter(Project.team_id == current_user.team_id).all()]
+                query = query.filter(Application.project_id.in_(team_project_ids))
+        elif role == "LOB_ADMIN":
+            if current_user.lob_id:
+                lob_team_ids = [t.id for t in db.query(OrgTeam).filter(OrgTeam.lob_id == current_user.lob_id).all()]
+                lob_project_ids = [p.id for p in db.query(Project).filter(Project.team_id.in_(lob_team_ids)).all()]
+                query = query.filter(Application.project_id.in_(lob_project_ids))
+    apps = query.all()
     result = []
     for a in apps:
         result.append({
@@ -47,6 +65,7 @@ def list_apps(db: Session = Depends(get_db)):
             "connector_count": a.connector_count,
             "trend": a.trend,
             "owner_name": a.owner_name,
+            "project_id": a.project_id,
         })
     return result
 
@@ -78,6 +97,7 @@ def get_app(app_id: str, db: Session = Depends(get_db)):
         "connector_count": app.connector_count,
         "trend": app.trend,
         "owner_name": app.owner_name,
+        "project_id": app.project_id,
     }
 
 

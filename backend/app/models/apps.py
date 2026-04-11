@@ -1,5 +1,6 @@
 from sqlalchemy import String, Integer, Float, Boolean, Text, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
 from app.database.session import Base
 from app.models.base import TimestampMixin
 
@@ -69,6 +70,7 @@ class Application(Base, TimestampMixin):
     connector_count: Mapped[int] = mapped_column(Integer, default=0)
     trend: Mapped[str] = mapped_column(JSON, default=list)
     owner_name: Mapped[str] = mapped_column(String(128), default="")
+    project_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     team: Mapped["Team"] = relationship("Team", back_populates="applications")
     health_scores: Mapped[list["AppHealthScore"]] = relationship("AppHealthScore", back_populates="app")

@@ -144,6 +144,7 @@ export function mapHealthRule(r: HealthRule): HealthRuleModel {
 
 export interface IncidentModel {
   id: string; appId: string; appName: string; title: string
+  apps: string[]; sources: string[]
   severity: string; status: string; age: string
   owner: string; assignee: string; description: string; aiCause: string
   healthImpact: number; affectedDeps: string[]
@@ -156,6 +157,8 @@ export function mapIncident(i: Incident): IncidentModel {
     id: safeString(i.id),
     appId: safeString(i.app_id ?? ""),
     appName: safeString(i.app_name),
+    apps: i.app_name ? [i.app_name] : [],
+    sources: [],
     title: safeString(i.title),
     severity: normalizeSeverity(i.severity),
     status: normalizeIncidentStatus(i.status),
