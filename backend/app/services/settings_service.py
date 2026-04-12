@@ -55,8 +55,10 @@ class SettingsService:
             for s in slas
         ]
 
-    def list_audit_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_audit_logs(self, limit: int = 50, lob_id: Optional[str] = None) -> List[Dict[str, Any]]:
         logs = self.audit_repo.get_recent(limit)
+        if lob_id:
+            logs = [l for l in logs if l.lob_id == lob_id or l.lob_id is None]
         return [
             {
                 "id": l.id,
@@ -69,6 +71,8 @@ class SettingsService:
                 "details": l.details,
                 "ip_address": l.ip_address,
                 "timestamp": l.timestamp,
+                "lob_id": l.lob_id,
+                "team_id": l.team_id,
             }
             for l in logs
         ]

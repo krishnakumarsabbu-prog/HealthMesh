@@ -38,6 +38,8 @@ class ConnectorInstance(Base, TimestampMixin):
     last_sync: Mapped[str] = mapped_column(String(64), default="")
     metrics_count: Mapped[str] = mapped_column(String(32), default="0")
     config: Mapped[str] = mapped_column(JSON, default=dict)
+    lob_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    managed_by: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 
     template: Mapped["ConnectorTemplate"] = relationship("ConnectorTemplate", back_populates="instances")
     app_assignments: Mapped[list["AppConnectorAssignment"]] = relationship("AppConnectorAssignment", back_populates="connector_instance")

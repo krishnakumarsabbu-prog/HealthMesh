@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy import String, Integer, Float, Boolean, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database.session import Base
@@ -43,6 +44,8 @@ class AuditLog(Base, TimestampMixin):
     details: Mapped[str] = mapped_column(Text, default="")
     ip_address: Mapped[str] = mapped_column(String(64), default="")
     timestamp: Mapped[str] = mapped_column(String(64), default="")
+    lob_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    team_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
 
 class AppSettings(Base, TimestampMixin):

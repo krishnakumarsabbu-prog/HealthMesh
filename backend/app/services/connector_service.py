@@ -29,8 +29,10 @@ class ConnectorService:
             for t in templates
         ]
 
-    def list_instances(self) -> List[Dict[str, Any]]:
+    def list_instances(self, lob_id: Optional[str] = None) -> List[Dict[str, Any]]:
         instances = self.instance_repo.get_all()
+        if lob_id:
+            instances = [c for c in instances if c.lob_id == lob_id or c.lob_id is None]
         return [self._serialize_instance(c) for c in instances]
 
     def create_instance(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -50,6 +52,8 @@ class ConnectorService:
             last_sync="just now",
             metrics_count="0",
             config=data.get("config", {}),
+            lob_id=data.get("lob_id"),
+            managed_by=data.get("managed_by"),
         )
         created = self.instance_repo.create(instance)
         return self._serialize_instance(created)
@@ -120,4 +124,6 @@ class ConnectorService:
             "last_sync": c.last_sync,
             "metrics_count": c.metrics_count,
             "config": c.config,
+            "lob_id": c.lob_id,
+            "managed_by": c.managed_by,
         }
