@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+import { api } from "./client"
 
 export interface ConnectorTemplate {
   id: string
@@ -40,60 +40,30 @@ export interface Notification {
   title: string
   description: string
   is_read: boolean
-  user_id: string | null
+  user_id?: string | null
   created_at: string
 }
 
-export async function listConnectorTemplates(): Promise<ConnectorTemplate[]> {
-  const { data, error } = await supabase
-    .from("connector_templates")
-    .select("*")
-    .order("display_order", { ascending: true })
-  if (error) throw new Error(error.message)
-  return data ?? []
+export function listConnectorTemplates(): Promise<ConnectorTemplate[]> {
+  return api.get<ConnectorTemplate[]>("/api/config/connector-templates")
 }
 
-export async function listEnvironments(): Promise<Environment[]> {
-  const { data, error } = await supabase
-    .from("environments")
-    .select("*")
-    .order("display_order", { ascending: true })
-  if (error) throw new Error(error.message)
-  return data ?? []
+export function listEnvironments(): Promise<Environment[]> {
+  return api.get<Environment[]>("/api/config/environments")
 }
 
-export async function listAvailableMetrics(): Promise<AvailableMetric[]> {
-  const { data, error } = await supabase
-    .from("available_metrics")
-    .select("*")
-    .order("display_order", { ascending: true })
-  if (error) throw new Error(error.message)
-  return data ?? []
+export function listAvailableMetrics(): Promise<AvailableMetric[]> {
+  return api.get<AvailableMetric[]>("/api/config/metrics")
 }
 
-export async function listHealthScoreWeights(): Promise<HealthScoreWeight[]> {
-  const { data, error } = await supabase
-    .from("health_score_weights")
-    .select("*")
-    .order("display_order", { ascending: true })
-  if (error) throw new Error(error.message)
-  return data ?? []
+export function listHealthScoreWeights(): Promise<HealthScoreWeight[]> {
+  return api.get<HealthScoreWeight[]>("/api/config/health-weights")
 }
 
-export async function listNotifications(): Promise<Notification[]> {
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20)
-  if (error) throw new Error(error.message)
-  return data ?? []
+export function listNotifications(): Promise<Notification[]> {
+  return api.get<Notification[]>("/api/config/notifications")
 }
 
-export async function markNotificationRead(id: string): Promise<void> {
-  const { error } = await supabase
-    .from("notifications")
-    .update({ is_read: true })
-    .eq("id", id)
-  if (error) throw new Error(error.message)
+export function markNotificationRead(id: string): Promise<void> {
+  return api.put<void>(`/api/config/notifications/${id}/read`, {})
 }
