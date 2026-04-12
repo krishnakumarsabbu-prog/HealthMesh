@@ -3,7 +3,6 @@ import json
 import random
 from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-from sqlalchemy.orm import Session
 from app.database.session import SessionLocal
 from app.core.security import decode_access_token
 from app.core.auth_deps import get_scoped_app_ids
@@ -15,45 +14,65 @@ router = APIRouter()
 BROADCAST_INTERVAL = 30
 
 
-def _get_db() -> Session:
-    return SessionLocal()
+def _authenticate_and_load(token: str) -> Optional[tuple]:
+    db = SessionLocal()
+    try:
+        payload = decode_access_token(token)
+        if not payload:
+            return None
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user or not user.is_active:
+            return None
+
+        scoped_ids = get_scoped_app_ids(user, db)
+
+        query = db.query(Application)
+        if scoped_ids is not None:
+            if len(scoped_ids) == 0:
+                return ({"role": user.role_id, "app_count": 0}, [])
+            query = query.filter(Application.id.in_(scoped_ids))
+
+        apps = query.all()
+        app_snapshots = [
+            {
+                "id": a.id,
+                "name": a.name,
+                "health_score": a.health_score,
+                "latency_p99": a.latency_p99,
+                "uptime": a.uptime,
+                "rpm": a.rpm,
+            }
+            for a in apps
+        ]
+        return ({"role": user.role_id, "app_count": len(apps)}, app_snapshots)
+    finally:
+        db.close()
 
 
-def _authenticate_token(token: str, db: Session) -> Optional[User]:
-    payload = decode_access_token(token)
-    if not payload:
-        return None
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user or not user.is_active:
-        return None
-    return user
-
-
-def _build_app_health_payload(app: Application) -> dict:
+def _build_app_health_payload(snap: dict) -> dict:
     delta = random.uniform(-2.5, 2.5)
-    new_score = max(0.0, min(100.0, app.health_score + delta))
-    latency_jitter = random.uniform(-15, 15)
-    new_latency = max(10.0, app.latency_p99 + latency_jitter)
+    new_score = max(0.0, min(100.0, snap["health_score"] + delta))
+    new_latency = max(10.0, snap["latency_p99"] + random.uniform(-15, 15))
 
     statuses = ["healthy", "healthy", "healthy", "warning", "critical"]
     weights = [0.7, 0.1, 0.05, 0.1, 0.05]
     new_status = random.choices(statuses, weights=weights, k=1)[0]
 
     return {
-        "app_id": app.id,
-        "name": app.name,
+        "app_id": snap["id"],
+        "name": snap["name"],
         "health_score": round(new_score, 1),
         "status": new_status,
         "latency_p99": round(new_latency, 1),
-        "uptime": round(app.uptime + random.uniform(-0.001, 0.001), 3),
-        "rpm": round(app.rpm + random.uniform(-50, 50), 0),
+        "uptime": round(snap["uptime"] + random.uniform(-0.001, 0.001), 3),
+        "rpm": round(snap["rpm"] + random.uniform(-50, 50), 0),
     }
 
 
-def _build_summary_payload(app_payloads: list[dict]) -> dict:
+def _build_summary_payload(app_payloads: list) -> dict:
     total = len(app_payloads)
     healthy = sum(1 for a in app_payloads if a["status"] == "healthy")
     warning = sum(1 for a in app_payloads if a["status"] == "warning")
@@ -79,58 +98,45 @@ async def ws_health(
     websocket: WebSocket,
     token: str = Query(...),
 ):
-    db = _get_db()
-    try:
-        user = _authenticate_token(token, db)
-        if not user:
-            await websocket.close(code=4001)
-            return
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _authenticate_and_load, token)
 
-        await websocket.accept()
+    if result is None:
+        await websocket.close(code=4001)
+        return
 
-        scoped_ids = get_scoped_app_ids(user, db)
+    user_meta, app_snapshots = result
 
-        query = db.query(Application)
-        if scoped_ids is not None:
-            if len(scoped_ids) == 0:
-                await websocket.send_text(json.dumps({
-                    "type": "connected",
-                    "message": "No apps in scope",
-                    "app_count": 0,
-                }))
-                await websocket.close(code=1000)
-                return
-            query = query.filter(Application.id.in_(scoped_ids))
+    await websocket.accept()
 
-        apps = query.all()
-
+    if user_meta["app_count"] == 0:
         await websocket.send_text(json.dumps({
             "type": "connected",
-            "message": f"Streaming health for {len(apps)} app(s)",
-            "app_count": len(apps),
-            "user_role": user.role_id,
+            "message": "No apps in scope",
+            "app_count": 0,
         }))
+        await websocket.close(code=1000)
+        return
 
+    await websocket.send_text(json.dumps({
+        "type": "connected",
+        "message": f"Streaming health for {user_meta['app_count']} app(s)",
+        "app_count": user_meta["app_count"],
+        "user_role": user_meta["role"],
+    }))
+
+    try:
         while True:
-            try:
-                app_payloads = [_build_app_health_payload(a) for a in apps]
-                summary = _build_summary_payload(app_payloads)
+            app_payloads = [_build_app_health_payload(snap) for snap in app_snapshots]
+            summary = _build_summary_payload(app_payloads)
 
-                payload = {
-                    "type": "health_update",
-                    "summary": summary,
-                    "apps": app_payloads,
-                }
+            await websocket.send_text(json.dumps({
+                "type": "health_update",
+                "summary": summary,
+                "apps": app_payloads,
+            }))
 
-                await websocket.send_text(json.dumps(payload))
-                await asyncio.sleep(BROADCAST_INTERVAL)
+            await asyncio.sleep(BROADCAST_INTERVAL)
 
-            except WebSocketDisconnect:
-                break
-            except Exception:
-                break
-
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, Exception):
         pass
-    finally:
-        db.close()
