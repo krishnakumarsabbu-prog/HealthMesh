@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Server, ArrowUpRight, Plus, Grid3x3, List, Star, StarOff, X, ChevronRight, Activity, Zap, TriangleAlert as AlertTriangle, Clock, Users, Link2, Filter, SlidersHorizontal, Eye, Tag, TrendingUp, TrendingDown, CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Layers } from "lucide-react"
+import { Search, Server, ArrowUpRight, Plus, Grid3x3, List, Star, StarOff, X, ChevronRight, Activity, Zap, TriangleAlert as AlertTriangle, Clock, Users, Link2, Filter, SlidersHorizontal, Eye, Tag, TrendingUp, TrendingDown, CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Layers, FolderOpen, Building2 } from "lucide-react"
 import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import { AreaChart, Area, ResponsiveContainer } from "recharts"
 import { PageHeader } from "@/components/shared/PageHeader"
@@ -14,6 +14,8 @@ import { useApi } from "@/hooks/useApi"
 import { listApps } from "@/lib/api/apps"
 import { mapAppSummary } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
+import { useAuth } from "@/context/AuthContext"
+import { listProjects, type Project } from "@/lib/api/org"
 
 type AppStatus = "healthy" | "warning" | "critical" | "degraded" | "unknown"
 type Criticality = "P0" | "P1" | "P2" | "P3"
@@ -24,7 +26,7 @@ interface AppEntry {
   latency: string; rpm: string; type: string; tags: string[]
   incidents: number; deps: number; connectors: string[]
   lastIncident: string; lastRefresh: string; failingChecks: number
-  trend: number[]; description: string
+  trend: number[]; description: string; project?: string
 }
 
 const APPS: AppEntry[] = [
@@ -243,23 +245,36 @@ function apiAppToEntry(a: Parameters<typeof mapAppSummary>[0]): AppEntry {
 }
 
 export function ApplicationCatalog() {
+  const { user } = useAuth()
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "grid">("list")
   const [statusFilter, setStatusFilter] = useState("all")
   const [critFilter, setCritFilter] = useState("all")
   const [teamFilter, setTeamFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState("all")
   const [sortBy, setSortBy] = useState<"criticality" | "score" | "latency" | "incidents">("criticality")
   const [favorites, setFavorites] = useState<Set<string>>(new Set(["payments-api", "fraud-detection-service"]))
   const [drawerApp, setDrawerApp] = useState<AppEntry | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
   const { data: apiApps, loading } = useApi(listApps)
+  const { data: projectsData } = useApi(listProjects)
+  const projects: Project[] = projectsData ?? []
+
   const APPS_DATA: AppEntry[] = useMemo(() => {
     if (apiApps && apiApps.length > 0) return apiApps.map(apiAppToEntry)
     return APPS
   }, [apiApps])
 
   const teams = useMemo(() => ["all", ...Array.from(new Set(APPS_DATA.map(a => a.team))).sort()], [APPS_DATA])
+
+  const scopeLabel = useMemo(() => {
+    if (!user) return null
+    if (user.role_id === "LOB_ADMIN" && user.lob_name) return { icon: "lob", label: user.lob_name }
+    if (user.role_id === "TEAM_ADMIN" && user.team_name) return { icon: "team", label: user.team_name }
+    if (user.role_id === "PROJECT_ADMIN" && user.project_name) return { icon: "project", label: user.project_name }
+    return null
+  }, [user])
 
   const filtered = useMemo(() => {
     return APPS_DATA
@@ -271,7 +286,8 @@ export function ApplicationCatalog() {
         const matchStatus = statusFilter === "all" || app.status === statusFilter
         const matchCrit = critFilter === "all" || app.criticality === critFilter
         const matchTeam = teamFilter === "all" || app.team === teamFilter
-        return matchSearch && matchStatus && matchCrit && matchTeam
+        const matchProject = projectFilter === "all" || app.project === projectFilter
+        return matchSearch && matchStatus && matchCrit && matchTeam && matchProject
       })
       .sort((a, b) => {
         if (sortBy === "criticality") {
@@ -283,7 +299,7 @@ export function ApplicationCatalog() {
         if (sortBy === "incidents") return b.incidents - a.incidents
         return 0
       })
-  }, [search, statusFilter, critFilter, teamFilter, sortBy])
+  }, [search, statusFilter, critFilter, teamFilter, projectFilter, sortBy])
 
   const counts = useMemo(() => ({
     all: APPS_DATA.length,
@@ -370,9 +386,9 @@ export function ApplicationCatalog() {
               <Button variant={showFilters ? "secondary" : "outline"} size="sm" className="gap-1.5 h-8 text-xs"
                 onClick={() => setShowFilters(p => !p)}>
                 <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
-                {(critFilter !== "all" || teamFilter !== "all") && (
+                {(critFilter !== "all" || teamFilter !== "all" || projectFilter !== "all") && (
                   <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
-                    {[critFilter !== "all", teamFilter !== "all"].filter(Boolean).length}
+                    {[critFilter !== "all", teamFilter !== "all", projectFilter !== "all"].filter(Boolean).length}
                   </span>
                 )}
               </Button>
@@ -418,6 +434,16 @@ export function ApplicationCatalog() {
                   >
                     {teams.map(t => <option key={t} value={t}>{t === "all" ? "All Teams" : t}</option>)}
                   </select>
+                  {projects.length > 0 && (
+                    <select
+                      value={projectFilter}
+                      onChange={e => setProjectFilter(e.target.value)}
+                      className="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="all">All Projects</option>
+                      {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                    </select>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -434,9 +460,19 @@ export function ApplicationCatalog() {
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Showing <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> of {counts.all} applications
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-muted-foreground">
+                Showing <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span> of {counts.all} applications
+              </p>
+              {scopeLabel && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/8 border border-primary/20 text-xs font-medium text-primary">
+                  {scopeLabel.icon === "lob" && <Building2 className="w-3 h-3" />}
+                  {scopeLabel.icon === "team" && <Users className="w-3 h-3" />}
+                  {scopeLabel.icon === "project" && <FolderOpen className="w-3 h-3" />}
+                  <span>Scoped: {scopeLabel.label}</span>
+                </div>
+              )}
+            </div>
             <div className="live-indicator">
               <span className="live-dot" />
               Live
@@ -445,8 +481,8 @@ export function ApplicationCatalog() {
 
           {view === "list" && (
             <div className="premium-card overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 px-5 py-2.5 border-b border-border/50 bg-muted/20">
-                {["Application", "Team / Type", "Status", "Score", "Latency", "Uptime", "Inc.", ""].map(h => (
+              <div className="grid grid-cols-[2fr_1fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 px-5 py-2.5 border-b border-border/50 bg-muted/20">
+                {["Application", "Team / Type", "Project", "Status", "Score", "Latency", "Uptime", "Inc.", ""].map(h => (
                   <span key={h} className="section-label">{h}</span>
                 ))}
               </div>
@@ -458,7 +494,7 @@ export function ApplicationCatalog() {
                     transition={{ delay: i * 0.02 }}
                     onClick={() => setDrawerApp(app)}
                     className={cn(
-                      "grid grid-cols-[2fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 items-center px-5 py-3.5",
+                      "grid grid-cols-[2fr_1fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 items-center px-5 py-3.5",
                       "hover:bg-muted/25 cursor-pointer transition-colors duration-150 group",
                       "border-l-2",
                       STATUS_ACCENT[app.status]
@@ -494,6 +530,17 @@ export function ApplicationCatalog() {
                     <div>
                       <div className="text-xs font-medium text-foreground">{app.team}</div>
                       <div className="text-[10px] text-muted-foreground">{app.type}</div>
+                    </div>
+
+                    <div>
+                      {app.project ? (
+                        <div className="flex items-center gap-1">
+                          <FolderOpen className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+                          <span className="text-xs text-muted-foreground truncate">{app.project}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/40">—</span>
+                      )}
                     </div>
 
                     <StatusBadge status={app.status} size="sm" />
@@ -624,7 +671,7 @@ export function ApplicationCatalog() {
               </div>
               <div className="text-sm font-semibold text-foreground mb-1.5">No applications found</div>
               <div className="text-xs text-muted-foreground mb-4">Try adjusting your search or filters</div>
-              <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setCritFilter("all"); setTeamFilter("all") }}>
+              <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setCritFilter("all"); setTeamFilter("all"); setProjectFilter("all") }}>
                 Clear all filters
               </Button>
             </motion.div>

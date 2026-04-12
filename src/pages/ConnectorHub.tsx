@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { Plus, Search, LayoutGrid, List, X, Activity, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, CircleX, Plug } from "lucide-react"
+import { Plus, Search, LayoutGrid, List, X, Activity, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, CircleX, Plug, Building2, Info } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,9 @@ import { AddConnectorWizard } from "./connectorHub/AddConnectorWizard"
 import { useApi } from "@/hooks/useApi"
 import { listConnectorInstances } from "@/lib/api/connectors"
 import { mapConnectorInstance } from "@/lib/mappers"
+import { useAuth } from "@/context/AuthContext"
+
+const CONNECTOR_LIMIT = 25
 
 function apiToConnector(a: Parameters<typeof mapConnectorInstance>[0]): ConnectorInstance {
   const m = mapConnectorInstance(a)
@@ -42,6 +45,7 @@ type CategoryFilter = typeof ALL | ConnectorCategory
 const STATUS_FILTERS = [ALL, "active", "warning", "error"] as const
 
 export function ConnectorHub() {
+  const { user } = useAuth()
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(ALL)
   const [statusFilter, setStatusFilter] = useState<typeof STATUS_FILTERS[number]>(ALL)
   const [search, setSearch] = useState("")
@@ -103,6 +107,45 @@ export function ConnectorHub() {
               </div>
             </motion.div>
           ))}
+        </div>
+
+        {/* Connector limit indicator */}
+        <div className="flex items-center gap-3 p-3.5 rounded-xl border border-border/50 bg-muted/20">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <Plug className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-foreground">Connector Capacity</span>
+                {user?.lob_name && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/8 border border-primary/15">
+                    <Building2 className="w-3 h-3 text-primary" />
+                    <span className="text-[10px] font-medium text-primary">{user.lob_name}</span>
+                  </div>
+                )}
+              </div>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                <span className={cn("font-bold", stats.total >= CONNECTOR_LIMIT * 0.9 ? "text-amber-500" : "text-foreground")}>{stats.total}</span>
+                /{CONNECTOR_LIMIT}
+              </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-border/60 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min((stats.total / CONNECTOR_LIMIT) * 100, 100)}%` }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className={cn("h-full rounded-full",
+                  stats.total >= CONNECTOR_LIMIT ? "bg-red-500" :
+                  stats.total >= CONNECTOR_LIMIT * 0.9 ? "bg-amber-500" : "bg-primary"
+                )}
+              />
+            </div>
+          </div>
+          {stats.total >= CONNECTOR_LIMIT * 0.8 && (
+            <div className="flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium shrink-0">
+              <Info className="w-3.5 h-3.5" />
+              {stats.total >= CONNECTOR_LIMIT ? "Limit reached" : `${CONNECTOR_LIMIT - stats.total} slots left`}
+            </div>
+          )}
         </div>
 
         {/* Filter + Search bar */}
@@ -191,11 +234,12 @@ export function ConnectorHub() {
           ) : (
             <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="premium-card overflow-hidden">
-              <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-2.5 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <span></span>
                 <span>Connector</span>
                 <span>Category</span>
                 <span>Environment</span>
+                <span>Managed By</span>
                 <span>Health</span>
                 <span>Apps</span>
                 <span>Last Sync</span>
@@ -207,7 +251,7 @@ export function ConnectorHub() {
                   return (
                     <motion.div key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
                       onClick={() => setSelectedConnector(c)}
-                      className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3 hover:bg-muted/20 transition-colors cursor-pointer">
+                      className="grid grid-cols-[auto_2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 items-center px-5 py-3 hover:bg-muted/20 transition-colors cursor-pointer">
                       <div className={cn("w-2 h-2 rounded-full shrink-0", statusDot)} />
                       <div className="flex items-center gap-2 min-w-0">
                         <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono shrink-0", c.iconBg)}>
@@ -217,6 +261,14 @@ export function ConnectorHub() {
                       </div>
                       <Badge variant="secondary" size="sm">{c.category}</Badge>
                       <span className="text-xs text-muted-foreground">{c.environment}</span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {c.managedBy ? (
+                          <span className="flex items-center gap-1">
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            {c.managedBy}
+                          </span>
+                        ) : "—"}
+                      </span>
                       <span className={cn("text-xs font-bold font-mono",
                         c.healthScore >= 90 ? "text-emerald-500" : c.healthScore >= 70 ? "text-amber-500" : "text-red-500"
                       )}>{c.healthScore > 0 ? `${c.healthScore}%` : "—"}</span>

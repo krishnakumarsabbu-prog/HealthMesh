@@ -5,7 +5,7 @@ import {
   TriangleAlert as AlertTriangle, GitBranch, Sparkles,
   ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings,
   ChevronLeft, ChevronRight, Activity, Wrench, Target, FileText, Shield,
-  Building2, UserCog,
+  Building2, UserCog, FolderOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
@@ -54,6 +54,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { icon: Wand2, label: "Onboarding Studio", path: "/onboarding", description: "Connect new applications", requiredMinRole: "TEAM_ADMIN" },
       { icon: Users, label: "Teams & Ownership", path: "/teams", description: "People & responsibilities" },
       { icon: Building2, label: "Organization", path: "/organization", description: "LOB, team & project hierarchy" },
+      { icon: FolderOpen, label: "Projects", path: "/projects", description: "Browse all projects by LOB & team" },
       { icon: UserCog, label: "User Management", path: "/users", description: "Manage users and access", requiredPermission: "manage_users" },
       { icon: Settings, label: "Settings & Admin", path: "/settings", description: "Configuration & access", requiredPermission: "manage_settings" },
     ],

@@ -1,12 +1,14 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Settings, CircleX, Link } from "lucide-react"
+import { Settings, CircleX, Link, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useApi } from "@/hooks/useApi"
 import { listApps, assignConnectorToApp, type AppSummary } from "@/lib/api/apps"
 import { PermissionGuard } from "@/components/auth/PermissionGuard"
+import { useAuth } from "@/context/AuthContext"
+import { can } from "@/lib/permissions"
 import type { ConnectorInstance } from "./data"
 
 interface Props {
@@ -27,8 +29,12 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
   const [showAssignPanel, setShowAssignPanel] = useState(false)
   const [assigning, setAssigning] = useState<string | null>(null)
   const [assigned, setAssigned] = useState<Set<string>>(new Set())
+  const { user } = useAuth()
 
   const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
+
+  const isOwnerLob = connector.lob_id && user?.lob_id === connector.lob_id
+  const canEdit = can(user, "edit_connector") && (isOwnerLob || !connector.lob_id)
 
   async function handleAssign(e: React.MouseEvent, appId: string) {
     e.stopPropagation()
@@ -90,6 +96,13 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
         </div>
       </div>
 
+      {connector.managedBy && (
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Building2 className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+          <span className="text-[10px] text-muted-foreground">Managed by <span className="font-semibold text-foreground/70">{connector.managedBy}</span></span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-2.5 border-t border-border/40">
         <div className="text-[10px] text-muted-foreground">
           {connector.status === "error" ? (
@@ -107,11 +120,11 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
           >
             <Link className="w-3.5 h-3.5" />
           </Button>
-          <PermissionGuard action="edit_connector">
+          {canEdit && (
             <Button variant="ghost" size="icon-sm" onClick={e => { e.stopPropagation() }}>
               <Settings className="w-3.5 h-3.5" />
             </Button>
-          </PermissionGuard>
+          )}
         </div>
       </div>
 

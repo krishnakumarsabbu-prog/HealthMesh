@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Zap, Activity, Settings, Unplug, Archive, RefreshCw, ChartBar as BarChart2, ExternalLink, CircleCheck as CheckCircle } from "lucide-react"
+import { X, Zap, Activity, Settings, Unplug, Archive, RefreshCw, ChartBar as BarChart2, ExternalLink, CircleCheck as CheckCircle, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PermissionGuard } from "@/components/auth/PermissionGuard"
+import { useAuth } from "@/context/AuthContext"
+import { can } from "@/lib/permissions"
 import type { ConnectorInstance } from "./data"
 
 interface Props {
@@ -21,6 +23,10 @@ const SYNC_HISTORY = [
 ]
 
 export function ConnectorDrawer({ connector, onClose, onEdit }: Props) {
+  const { user } = useAuth()
+  const isOwnerLob = connector?.lob_id && user?.lob_id === connector.lob_id
+  const canEdit = can(user, "edit_connector") && (isOwnerLob || !connector?.lob_id)
+
   return (
     <AnimatePresence>
       {connector && (
@@ -95,6 +101,19 @@ export function ConnectorDrawer({ connector, onClose, onEdit }: Props) {
                 </div>
               </div>
 
+              {/* Managed By */}
+              {connector.managedBy && (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Managed By</div>
+                    <div className="text-sm font-semibold text-foreground mt-0.5">{connector.managedBy}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Sync history */}
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recent Sync History</div>
@@ -141,11 +160,11 @@ export function ConnectorDrawer({ connector, onClose, onEdit }: Props) {
                   <BarChart2 className="w-3.5 h-3.5" /> View Usage
                 </Button>
               </div>
-              <PermissionGuard action="edit_connector">
+              {canEdit && (
                 <Button onClick={onEdit} className="w-full gap-2 text-sm" size="sm">
                   <Settings className="w-3.5 h-3.5" /> Edit Configuration
                 </Button>
-              </PermissionGuard>
+              )}
             </div>
           </motion.div>
         </>

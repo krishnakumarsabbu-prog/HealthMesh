@@ -24,6 +24,7 @@ import { RolesPermissionsPage } from "@/pages/RolesPermissionsPage"
 import { UserManagementPage } from "@/pages/UserManagementPage"
 import { OrganizationPage } from "@/pages/OrganizationPage"
 import { SystemStatusPage } from "@/pages/SystemStatusPage"
+import { ProjectsPage } from "@/pages/ProjectsPage"
 
 export default function App() {
   return (
@@ -69,6 +70,7 @@ export default function App() {
                   </Route>
 
                   <Route path="/organization" element={<OrganizationPage />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
 
                   <Route element={<ProtectedRoute requiredPermission="view_admin_tools" />}>
                     <Route path="/system-status" element={<SystemStatusPage />} />

@@ -18,6 +18,8 @@ export interface ConnectorInstance {
   bgColor: string
   iconBg: string
   abbr: string
+  lob_id?: string | null
+  managedBy?: string | null
 }
 
 export const CONNECTOR_INSTANCES: ConnectorInstance[] = [
@@ -38,6 +40,7 @@ export const CONNECTOR_INSTANCES: ConnectorInstance[] = [
     bgColor: "from-violet-500/15 to-violet-500/5",
     iconBg: "bg-violet-500/10 text-violet-500",
     abbr: "DD",
+    managedBy: "Platform LOB",
   },
   {
     id: "prom-prod",
@@ -56,6 +59,7 @@ export const CONNECTOR_INSTANCES: ConnectorInstance[] = [
     bgColor: "from-orange-500/15 to-orange-500/5",
     iconBg: "bg-orange-500/10 text-orange-500",
     abbr: "PR",
+    managedBy: "Infrastructure Team",
   },
   {
     id: "cw-prod",

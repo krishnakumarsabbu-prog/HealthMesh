@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { X, ChevronRight, ChevronLeft, CircleCheck as CheckCircle, Zap, TriangleAlert as AlertTriangle, Loader } from "lucide-react"
+import { X, ChevronRight, ChevronLeft, CircleCheck as CheckCircle, Zap, TriangleAlert as AlertTriangle, Loader, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { CONNECTOR_TEMPLATES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
+import { useAuth } from "@/context/AuthContext"
 
 interface Props {
   onClose: () => void
@@ -90,6 +91,7 @@ const METRIC_PRESETS = [
 ]
 
 export function AddConnectorWizard({ onClose }: Props) {
+  const { user } = useAuth()
   const [step, setStep] = useState(0)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [authFields, setAuthFields] = useState<Record<string, string>>({})
@@ -99,6 +101,9 @@ export function AddConnectorWizard({ onClose }: Props) {
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["golden-signals", "slo-pack"])
   const [selectedAppIds, setSelectedAppIds] = useState<Set<string>>(new Set())
   const [testState, setTestState] = useState<"idle" | "testing" | "success" | "error">("idle")
+
+  const lobId = user?.lob_id || null
+  const lobName = user?.lob_name || null
 
   const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
 
@@ -254,6 +259,18 @@ export function AddConnectorWizard({ onClose }: Props) {
                       <div className="text-base font-bold text-foreground mb-0.5">Connection Details</div>
                       <div className="text-sm text-muted-foreground">Name this connector and set its scope.</div>
                     </div>
+                    {lobName && (
+                      <div className="flex items-center gap-2 p-3 rounded-xl bg-primary/5 border border-primary/15">
+                        <Building2 className="w-4 h-4 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-primary">LOB Scope</div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            This connector will be registered under <span className="font-semibold text-foreground">{lobName}</span> and visible to all users in your LOB.
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">auto</div>
+                      </div>
+                    )}
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Connector Name</label>
@@ -494,6 +511,7 @@ export function AddConnectorWizard({ onClose }: Props) {
                         { label: "Template", value: template?.name },
                         { label: "Category", value: template?.category },
                         { label: "Environment", value: environment },
+                        { label: "LOB Scope", value: lobName || "Global" },
                         { label: "Capabilities", value: `${selectedCapabilities.length} selected` },
                         { label: "Metric Packs", value: `${selectedPresets.length} selected` },
                         { label: "Apps Assigned", value: selectedAppIds.size > 0 ? `${selectedAppIds.size} apps` : "None (assign later)" },
