@@ -11,6 +11,7 @@ import {
   getOrgHierarchy, createOrgTeam, createProject,
   type OrgHierarchy, type Lob, type OrgTeam,
 } from "@/lib/api/org"
+import { useAuth } from "@/context/AuthContext"
 
 function healthColor(score: number) {
   if (score >= 90) return { bar: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" }
@@ -216,6 +217,7 @@ interface AddTeamState { lob: Lob }
 interface AddProjectState { team: OrgTeam }
 
 export function OrganizationPage() {
+  const { user } = useAuth()
   const [hierarchy, setHierarchy] = useState<OrgHierarchy[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -228,14 +230,17 @@ export function OrganizationPage() {
     setLoading(true); setError("")
     try {
       const data = await getOrgHierarchy()
-      setHierarchy(data)
-      setExpandedLobs(new Set(data.map(h => h.lob.id)))
+      const scoped = user?.lob_id && user.role_id !== "LOB_ADMIN" || user?.role_id === "LOB_ADMIN" && user.lob_id
+        ? data.filter(h => !user.lob_id || h.lob.id === user.lob_id)
+        : data
+      setHierarchy(scoped)
+      setExpandedLobs(new Set(scoped.map(h => h.lob.id)))
     } catch {
       setError("Failed to load organization structure.")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => { load() }, [load])
 

@@ -34,19 +34,6 @@ type LogEntry = {
   team_id?: string | null
 }
 
-const STATIC_LOGS: LogEntry[] = [
-  { id: "log-001", category: "config", action: "Health rule threshold updated", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 14:32:18", target: "search-latency-rule", severity: "medium", lob_id: "11111111-0000-0000-0000-000000000001" },
-  { id: "log-002", category: "auth", action: "Admin login successful", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 14:28:04", target: "platform", severity: "low", lob_id: "11111111-0000-0000-0000-000000000002" },
-  { id: "log-003", category: "connector", action: "Connector disconnected", user: "System", ip: "internal", time: "2026-04-09 14:15:42", target: "pagerduty-prod", severity: "high", lob_id: "11111111-0000-0000-0000-000000000001" },
-  { id: "log-004", category: "user", action: "User role changed to Admin", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 13:44:22", target: "yuki.tanaka@acme.io", severity: "medium", lob_id: "11111111-0000-0000-0000-000000000001" },
-  { id: "log-005", category: "api", action: "API key created", user: "Tom Park", ip: "10.0.5.88", time: "2026-04-09 13:10:55", target: "catalog-service-key", severity: "medium", lob_id: "11111111-0000-0000-0000-000000000002" },
-  { id: "log-006", category: "rule", action: "Health rule activated", user: "Jake Moore", ip: "10.0.3.21", time: "2026-04-09 12:58:33", target: "search-api-error-rate", severity: "low", lob_id: "11111111-0000-0000-0000-000000000003" },
-  { id: "log-007", category: "config", action: "SLO target modified", user: "Rachel James", ip: "10.0.2.14", time: "2026-04-09 12:42:10", target: "payments-success-rate", severity: "medium", lob_id: "11111111-0000-0000-0000-000000000002" },
-  { id: "log-008", category: "auth", action: "Failed login attempt", user: "unknown", ip: "203.45.67.89", time: "2026-04-09 12:31:02", target: "platform", severity: "high", lob_id: null },
-  { id: "log-009", category: "connector", action: "Connector configuration updated", user: "Sara Lee", ip: "192.168.1.55", time: "2026-04-09 11:58:19", target: "datadog-apm-prod", severity: "low", lob_id: "11111111-0000-0000-0000-000000000001" },
-  { id: "log-010", category: "user", action: "User invited to workspace", user: "Alex Chen", ip: "192.168.1.42", time: "2026-04-09 11:22:44", target: "new.engineer@acme.io", severity: "low", lob_id: "11111111-0000-0000-0000-000000000001" },
-]
-
 function apiToLog(l: ApiAuditLog): LogEntry {
   const catMap: Record<string, LogCategory> = {
     auth: "auth", config: "config", user: "user", api: "api", connector: "connector", rule: "rule",
@@ -90,7 +77,7 @@ export function AuditLogs() {
   const isLobAdmin = user?.role_id === "LOB_ADMIN" && !!user?.lob_id
   const userLobId = user?.lob_id
 
-  const rawLogs: LogEntry[] = apiLogs && apiLogs.length > 0 ? apiLogs.map(apiToLog) : STATIC_LOGS
+  const rawLogs: LogEntry[] = (apiLogs ?? []).map(apiToLog)
 
   const scopedLogs = useMemo(() => {
     if (isLobAdmin && userLobId) {
@@ -282,7 +269,6 @@ export function AuditLogs() {
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
           Showing {filtered.length} of {scopedLogs.length} entries
-          {apiLogs && apiLogs.length > 0 ? " (live)" : ""}
           {isLobAdmin && " · scoped to your LOB"}
         </span>
         <span>Retained for 90 days</span>

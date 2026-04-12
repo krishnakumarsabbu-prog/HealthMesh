@@ -307,7 +307,11 @@ export function ProjectsPage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const { data: hierarchyData, loading } = useApi(() => getOrgHierarchy(), [refreshKey])
-  const hierarchy: OrgHierarchy[] = hierarchyData ?? []
+  const rawHierarchy: OrgHierarchy[] = hierarchyData ?? []
+  const hierarchy: OrgHierarchy[] = useMemo(() => {
+    if (!user?.lob_id) return rawHierarchy
+    return rawHierarchy.filter(h => h.lob.id === user.lob_id)
+  }, [rawHierarchy, user])
   const canCreate = can(user, "create_project")
 
   const stats = useMemo(() => {

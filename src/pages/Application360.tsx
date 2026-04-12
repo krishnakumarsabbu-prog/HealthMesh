@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 import { useState, useMemo } from "react"
-import { Server, GitBranch, ExternalLink } from "lucide-react"
+import { Server, GitBranch, ExternalLink, Radio } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
+import { useHealthSocket } from "@/hooks/useHealthSocket"
+import { useAuth } from "@/context/AuthContext"
 import { APP_OPTIONS } from "./application360/data"
 import { TabOverview } from "./application360/TabOverview"
 import { TabSignals } from "./application360/TabSignals"
@@ -69,6 +71,7 @@ function apiAppToOption(a: AppSummary): AppOption {
 
 export function Application360() {
   const [selectedApp, setSelectedApp] = useState<string | null>(null)
+  const { token } = useAuth()
 
   const { data: apiApps } = useApi(listApps)
 
@@ -78,7 +81,20 @@ export function Application360() {
   }, [apiApps])
 
   const effectiveSelected = selectedApp ?? APP_OPTS[0]?.value ?? "payments-api"
-  const app = APP_OPTS.find(a => a.value === effectiveSelected) ?? APP_OPTS[0]
+  const baseApp = APP_OPTS.find(a => a.value === effectiveSelected) ?? APP_OPTS[0]
+
+  const { connected, appHealthMap } = useHealthSocket({ token, enabled: !!token })
+  const liveData = appHealthMap[effectiveSelected]
+
+  const app = useMemo(() => {
+    if (!baseApp) return baseApp
+    if (!liveData) return baseApp
+    return {
+      ...baseApp,
+      score: Math.round(liveData.health_score),
+      status: liveData.status as AppOption["status"],
+    }
+  }, [baseApp, liveData])
 
   return (
     <div className="min-h-full">
@@ -126,6 +142,12 @@ export function Application360() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {connected && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <Radio className="w-3 h-3 animate-pulse" />
+                  Live
+                </div>
+              )}
               <div className="text-center px-4 py-2 rounded-xl bg-muted/40 border border-border/60">
                 <div className={cn("text-xl font-bold",
                   (app?.score ?? 0) >= 90 ? "text-emerald-500" : (app?.score ?? 0) >= 70 ? "text-amber-500" : "text-red-500"

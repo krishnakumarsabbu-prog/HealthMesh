@@ -156,7 +156,10 @@ export function LOBHealthPanel() {
     ? allLobs
     : allLobs.filter(l => l.id === userLobId)
 
-  const lobData = buildLOBHealthData(visibleLobs, allTeams)
+  const visibleLobIds = new Set(visibleLobs.map(l => l.id))
+  const visibleTeams = allTeams.filter(t => visibleLobIds.has(t.lob_id))
+
+  const lobData = buildLOBHealthData(visibleLobs, visibleTeams)
 
   if (lobData.length === 0) return null
 

@@ -263,7 +263,7 @@ export function ApplicationCatalog() {
 
   const APPS_DATA: AppEntry[] = useMemo(() => {
     if (apiApps && apiApps.length > 0) return apiApps.map(apiAppToEntry)
-    return APPS
+    return []
   }, [apiApps])
 
   const teams = useMemo(() => ["all", ...Array.from(new Set(APPS_DATA.map(a => a.team))).sort()], [APPS_DATA])
@@ -663,7 +663,39 @@ export function ApplicationCatalog() {
             </div>
           )}
 
-          {filtered.length === 0 && (
+          {loading && (
+            <div className="premium-card overflow-hidden">
+              <div className="divide-y divide-border/25">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-[2fr_1fr_1fr_84px_76px_72px_72px_56px_44px] gap-3 items-center px-5 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-muted animate-pulse" />
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+                        <div className="h-2 w-20 bg-muted animate-pulse rounded" />
+                      </div>
+                    </div>
+                    {Array.from({ length: 7 }).map((_, j) => (
+                      <div key={j} className="h-3 bg-muted animate-pulse rounded" />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!loading && APPS_DATA.length === 0 && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-muted/60 border border-border/50 flex items-center justify-center mb-4">
+                <Server className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div className="text-sm font-semibold text-foreground mb-1.5">No applications onboarded</div>
+              <div className="text-xs text-muted-foreground mb-4">Use the Onboarding Studio to add your first application</div>
+            </motion.div>
+          )}
+
+          {!loading && APPS_DATA.length > 0 && filtered.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-14 h-14 rounded-2xl bg-muted/60 border border-border/50 flex items-center justify-center mb-4">

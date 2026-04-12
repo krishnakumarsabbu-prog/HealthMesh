@@ -135,3 +135,32 @@ def update_project(
     db.commit()
     db.refresh(project)
     return _serialize_project(project)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("LOB_ADMIN")),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    _assert_team_in_scope(current_user, project.org_team)
+
+    project_name = project.name
+    write_audit_log(
+        db=db,
+        actor=current_user,
+        action="DELETE",
+        resource_type="Project",
+        resource_id=project_id,
+        resource_name=project_name,
+        details=f"Deleted project '{project_name}'",
+        ip_address=request.client.host if request.client else "",
+    )
+
+    db.delete(project)
+    db.commit()

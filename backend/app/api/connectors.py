@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.services import ConnectorService
 from app.core.auth_deps import get_current_user, require_role
+from app.core.audit import write_audit_log
 from app.models.identity import User
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
@@ -57,6 +58,7 @@ def list_instances(
 @router.post("/instances")
 def create_instance(
     payload: dict,
+    request: Request,
     current_user: User = Depends(require_role("TEAM_ADMIN")),
     db: Session = Depends(get_db),
 ):
@@ -64,10 +66,23 @@ def create_instance(
     if "lob_id" not in payload or payload.get("lob_id") is None:
         payload["lob_id"] = current_user.lob_id
     if "managed_by" not in payload or payload.get("managed_by") is None:
-        payload["managed_by"] = getattr(current_user, "lob_name", None) or current_user.email
+        lob_name = current_user.lob.name if current_user.lob else None
+        payload["managed_by"] = lob_name or current_user.email
     result = svc.create_instance(payload)
     if not result:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    write_audit_log(
+        db=db,
+        actor=current_user,
+        action="CREATE",
+        resource_type="ConnectorInstance",
+        resource_id=str(result.get("id", "")),
+        resource_name=payload.get("name", ""),
+        details=f"Created connector instance '{payload.get('name', '')}' (template: {payload.get('template_id', '')})",
+        ip_address=request.client.host if request.client else "",
+    )
+    db.commit()
     return result
 
 
@@ -75,6 +90,7 @@ def create_instance(
 def update_instance(
     instance_id: str,
     payload: dict,
+    request: Request,
     current_user: User = Depends(require_role("TEAM_ADMIN")),
     db: Session = Depends(get_db),
 ):
@@ -83,20 +99,49 @@ def update_instance(
     result = svc.update_instance(instance_id, payload)
     if not result:
         raise HTTPException(status_code=404, detail="Connector instance not found")
+
+    write_audit_log(
+        db=db,
+        actor=current_user,
+        action="UPDATE",
+        resource_type="ConnectorInstance",
+        resource_id=instance_id,
+        resource_name=result.get("name", instance_id),
+        details=f"Updated connector instance '{result.get('name', instance_id)}'",
+        ip_address=request.client.host if request.client else "",
+    )
+    db.commit()
     return result
 
 
 @router.delete("/instances/{instance_id}")
 def delete_instance(
     instance_id: str,
+    request: Request,
     current_user: User = Depends(require_role("TEAM_ADMIN")),
     db: Session = Depends(get_db),
 ):
     svc = ConnectorService(db)
+    instances = svc.list_instances()
+    match = next((i for i in instances if i["id"] == instance_id), None)
+    connector_name = match.get("name", instance_id) if match else instance_id
+
     _assert_connector_owner(instance_id, current_user, svc)
     deleted = svc.delete_instance(instance_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Connector instance not found")
+
+    write_audit_log(
+        db=db,
+        actor=current_user,
+        action="DELETE",
+        resource_type="ConnectorInstance",
+        resource_id=instance_id,
+        resource_name=connector_name,
+        details=f"Deleted connector instance '{connector_name}'",
+        ip_address=request.client.host if request.client else "",
+    )
+    db.commit()
     return {"deleted": True}
 
 

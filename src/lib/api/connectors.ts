@@ -1,4 +1,12 @@
 import { supabase } from "@/lib/supabase"
+import { api } from "@/lib/api/client"
+
+export interface ConnectorTestResult {
+  success: boolean
+  message: string
+  latency_ms?: number
+  details?: Record<string, string>
+}
 
 export interface ConnectorInstanceRow {
   id: string
@@ -78,4 +86,17 @@ export async function updateConnectorInstance(
     .single()
   if (error) throw error
   return data as ConnectorInstanceRow
+}
+
+export async function testConnectorConnection(payload: {
+  template_id: string
+  auth_fields: Record<string, string>
+  environment?: string
+}): Promise<ConnectorTestResult> {
+  try {
+    const result = await api.post<ConnectorTestResult>("/api/connectors/test", payload)
+    return result
+  } catch {
+    return { success: false, message: "Could not reach the connector endpoint. Check your credentials and network." }
+  }
 }

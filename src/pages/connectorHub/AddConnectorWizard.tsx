@@ -9,7 +9,7 @@ import { CONNECTOR_TEMPLATES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
 import { useAuth } from "@/context/AuthContext"
-import { createConnectorInstance } from "@/lib/api/connectors"
+import { createConnectorInstance, testConnectorConnection } from "@/lib/api/connectors"
 
 interface Props {
   onClose: () => void
@@ -107,6 +107,8 @@ export function AddConnectorWizard({ onClose }: Props) {
   const lobName = user?.lob_name || null
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [testError, setTestError] = useState("")
+  const [syncInterval, setSyncInterval] = useState("30s")
 
   const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
 
@@ -154,9 +156,21 @@ export function AddConnectorWizard({ onClose }: Props) {
       return next
     })
 
-  const runTest = () => {
+  const runTest = async () => {
+    if (!selectedTemplate) return
     setTestState("testing")
-    setTimeout(() => setTestState("success"), 2000)
+    setTestError("")
+    const result = await testConnectorConnection({
+      template_id: selectedTemplate,
+      auth_fields: authFields,
+      environment,
+    })
+    if (result.success) {
+      setTestState("success")
+    } else {
+      setTestState("error")
+      setTestError(result.message)
+    }
   }
 
   return (
@@ -327,7 +341,12 @@ export function AddConnectorWizard({ onClose }: Props) {
                         <div className="flex gap-2">
                           {["15s", "30s", "1m", "5m"].map(t => (
                             <button key={t}
-                              className="px-3 py-1.5 text-xs font-medium font-mono rounded-lg border border-border/60 text-muted-foreground hover:border-border transition-all">
+                              onClick={() => setSyncInterval(t)}
+                              className={cn("px-3 py-1.5 text-xs font-medium font-mono rounded-lg border transition-all",
+                                syncInterval === t
+                                  ? "border-primary bg-primary/8 text-primary"
+                                  : "border-border/60 text-muted-foreground hover:border-border"
+                              )}>
                               {t}
                             </button>
                           ))}
@@ -522,7 +541,10 @@ export function AddConnectorWizard({ onClose }: Props) {
                           <div className="flex items-center gap-2 text-red-500 font-semibold text-sm">
                             <AlertTriangle className="w-4 h-4" /> Connection Failed
                           </div>
-                          <div className="text-xs text-muted-foreground mt-1">Could not reach the endpoint. Check your credentials and network.</div>
+                          <div className="text-xs text-muted-foreground mt-1">{testError || "Could not reach the endpoint. Check your credentials and network."}</div>
+                          <Button variant="outline" size="sm" className="gap-2 text-xs mt-2" onClick={runTest}>
+                            <Zap className="w-3.5 h-3.5" /> Retry
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -544,6 +566,7 @@ export function AddConnectorWizard({ onClose }: Props) {
                         { label: "Category", value: template?.category },
                         { label: "Environment", value: environment },
                         { label: "LOB Scope", value: lobName || "Global" },
+                        { label: "Sync Interval", value: syncInterval },
                         { label: "Capabilities", value: `${selectedCapabilities.length} selected` },
                         { label: "Metric Packs", value: `${selectedPresets.length} selected` },
                         { label: "Apps Assigned", value: selectedAppIds.size > 0 ? `${selectedAppIds.size} apps` : "None (assign later)" },

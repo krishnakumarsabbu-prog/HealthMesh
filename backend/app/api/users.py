@@ -57,7 +57,7 @@ def _assert_scope(caller: User, role_id: str, lob_id: Optional[str], team_id: Op
 @router.get("", response_model=List[dict])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("LOB_ADMIN")),
+    current_user: User = Depends(require_role("TEAM_ADMIN")),
 ):
     query = db.query(User)
 
@@ -67,6 +67,8 @@ def list_users(
             (User.lob_id == current_user.lob_id)
             | (User.team_id.in_(lob_team_ids))
         )
+    elif current_user.role_id == "TEAM_ADMIN" and current_user.team_id:
+        query = query.filter(User.team_id == current_user.team_id)
 
     users = query.all()
     return [_serialize_user(u) for u in users]
