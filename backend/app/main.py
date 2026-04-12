@@ -9,7 +9,7 @@ import app.models  # noqa: F401 - ensure all models are registered
 from app.api import (
     dashboard, apps, connectors, health_rules, incidents,
     dependencies, insights, trends, teams, settings as settings_router, admin,
-    auth, tenant
+    auth, tenant, users, projects
 )
 from app.api import app_connectors
 
@@ -73,6 +73,8 @@ app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(tenant.router)
 app.include_router(app_connectors.router)
+app.include_router(users.router)
+app.include_router(projects.router)
 
 
 @app.get("/health")
