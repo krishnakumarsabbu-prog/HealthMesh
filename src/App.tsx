@@ -21,6 +21,8 @@ import { MaintenanceWindowsPage } from "@/pages/MaintenanceWindowsPage"
 import { SLASettingsPage } from "@/pages/SLASettingsPage"
 import { AuditLogsPage } from "@/pages/AuditLogsPage"
 import { RolesPermissionsPage } from "@/pages/RolesPermissionsPage"
+import { UserManagementPage } from "@/pages/UserManagementPage"
+import { OrganizationPage } from "@/pages/OrganizationPage"
 import { SystemStatusPage } from "@/pages/SystemStatusPage"
 
 export default function App() {
@@ -61,6 +63,12 @@ export default function App() {
                   <Route element={<ProtectedRoute requiredPermission="manage_roles" />}>
                     <Route path="/roles" element={<RolesPermissionsPage />} />
                   </Route>
+
+                  <Route element={<ProtectedRoute requiredPermission="manage_users" />}>
+                    <Route path="/users" element={<UserManagementPage />} />
+                  </Route>
+
+                  <Route path="/organization" element={<OrganizationPage />} />
 
                   <Route element={<ProtectedRoute requiredPermission="view_admin_tools" />}>
                     <Route path="/system-status" element={<SystemStatusPage />} />
