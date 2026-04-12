@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useApi } from "@/hooks/useApi"
 import { listApps, assignConnectorToApp, type AppSummary } from "@/lib/api/apps"
+import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import type { ConnectorInstance } from "./data"
 
 interface Props {
@@ -106,9 +107,11 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
           >
             <Link className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={e => { e.stopPropagation() }}>
-            <Settings className="w-3.5 h-3.5" />
-          </Button>
+          <PermissionGuard action="edit_connector">
+            <Button variant="ghost" size="icon-sm" onClick={e => { e.stopPropagation() }}>
+              <Settings className="w-3.5 h-3.5" />
+            </Button>
+          </PermissionGuard>
         </div>
       </div>
 

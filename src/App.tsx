@@ -41,15 +41,30 @@ export default function App() {
                   <Route path="/dependencies" element={<DependencyMap />} />
                   <Route path="/ai-insights" element={<AIInsights />} />
                   <Route path="/health-rules" element={<HealthRules />} />
-                  <Route path="/onboarding" element={<OnboardingStudio />} />
                   <Route path="/trends" element={<HistoricalTrends />} />
                   <Route path="/teams" element={<TeamsOwnership />} />
-                  <Route path="/settings" element={<SettingsAdmin />} />
-                  <Route path="/maintenance" element={<MaintenanceWindowsPage />} />
-                  <Route path="/sla" element={<SLASettingsPage />} />
-                  <Route path="/audit" element={<AuditLogsPage />} />
-                  <Route path="/roles" element={<RolesPermissionsPage />} />
-                  <Route path="/system-status" element={<SystemStatusPage />} />
+
+                  <Route element={<ProtectedRoute requiredMinRole="TEAM_ADMIN" />}>
+                    <Route path="/onboarding" element={<OnboardingStudio />} />
+                    <Route path="/maintenance" element={<MaintenanceWindowsPage />} />
+                    <Route path="/sla" element={<SLASettingsPage />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute requiredPermission="manage_settings" />}>
+                    <Route path="/settings" element={<SettingsAdmin />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute requiredPermission="view_audit" />}>
+                    <Route path="/audit" element={<AuditLogsPage />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute requiredPermission="manage_roles" />}>
+                    <Route path="/roles" element={<RolesPermissionsPage />} />
+                  </Route>
+
+                  <Route element={<ProtectedRoute requiredPermission="view_admin_tools" />}>
+                    <Route path="/system-status" element={<SystemStatusPage />} />
+                  </Route>
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

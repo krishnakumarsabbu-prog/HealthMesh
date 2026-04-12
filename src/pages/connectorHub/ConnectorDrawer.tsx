@@ -3,6 +3,7 @@ import { X, Zap, Activity, Settings, Unplug, Archive, RefreshCw, ChartBar as Bar
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import type { ConnectorInstance } from "./data"
 
 interface Props {
@@ -140,9 +141,11 @@ export function ConnectorDrawer({ connector, onClose, onEdit }: Props) {
                   <BarChart2 className="w-3.5 h-3.5" /> View Usage
                 </Button>
               </div>
-              <Button onClick={onEdit} className="w-full gap-2 text-sm" size="sm">
-                <Settings className="w-3.5 h-3.5" /> Edit Configuration
-              </Button>
+              <PermissionGuard action="edit_connector">
+                <Button onClick={onEdit} className="w-full gap-2 text-sm" size="sm">
+                  <Settings className="w-3.5 h-3.5" /> Edit Configuration
+                </Button>
+              </PermissionGuard>
             </div>
           </motion.div>
         </>

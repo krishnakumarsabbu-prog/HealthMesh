@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import { CONNECTOR_INSTANCES as STATIC_INSTANCES, CATEGORIES, type ConnectorInstance, type ConnectorCategory } from "./connectorHub/data"
 import { ConnectorCard } from "./connectorHub/ConnectorCard"
 import { ConnectorDrawer } from "./connectorHub/ConnectorDrawer"
@@ -75,9 +76,11 @@ export function ConnectorHub() {
         description="Manage integrations, data sources, and app bindings across your observability stack"
         badge={<Badge variant="healthy" size="sm">{stats.active} Active</Badge>}
         actions={
-          <Button size="sm" className="gap-2" onClick={() => setShowAddWizard(true)}>
-            <Plus className="w-3.5 h-3.5" /> Add Connector
-          </Button>
+          <PermissionGuard action="manage_connectors">
+            <Button size="sm" className="gap-2" onClick={() => setShowAddWizard(true)}>
+              <Plus className="w-3.5 h-3.5" /> Add Connector
+            </Button>
+          </PermissionGuard>
         }
       />
 

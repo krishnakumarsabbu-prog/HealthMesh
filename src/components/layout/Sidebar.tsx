@@ -1,19 +1,35 @@
 import { NavLink, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { LayoutDashboard, AppWindow, Layers, Plug2, TriangleAlert as AlertTriangle, GitBranch, Sparkles, ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings, ChevronLeft, ChevronRight, Activity, Wrench, Target, FileText, Shield } from "lucide-react"
+import {
+  LayoutDashboard, AppWindow, Layers, Plug2,
+  TriangleAlert as AlertTriangle, GitBranch, Sparkles,
+  ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings,
+  ChevronLeft, ChevronRight, Activity, Wrench, Target, FileText, Shield,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
+import { useAuth } from "@/context/AuthContext"
+import { can, hasMinRole, type Action } from "@/lib/permissions"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-const NAV_SECTIONS = [
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  path: string
+  description: string
+  requiredPermission?: Action
+  requiredMinRole?: string
+}
+
+const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: "Intelligence",
     items: [
       { icon: LayoutDashboard, label: "Executive Overview", path: "/", description: "Portfolio health at a glance" },
       { icon: AppWindow, label: "Application Catalog", path: "/catalog", description: "All monitored applications" },
       { icon: Layers, label: "Application 360", path: "/app360", description: "Deep-dive per application" },
-    ]
+    ],
   },
   {
     label: "Operations",
@@ -21,7 +37,7 @@ const NAV_SECTIONS = [
       { icon: Plug2, label: "Connector Hub", path: "/connectors", description: "Data source integrations" },
       { icon: AlertTriangle, label: "Incidents & Alerts", path: "/incidents", description: "Active issues & history" },
       { icon: GitBranch, label: "Dependency Map", path: "/dependencies", description: "Service topology & flows" },
-    ]
+    ],
   },
   {
     label: "AI & Analytics",
@@ -29,31 +45,43 @@ const NAV_SECTIONS = [
       { icon: Sparkles, label: "AI Insights", path: "/ai-insights", description: "ML-powered intelligence" },
       { icon: TrendingUp, label: "Historical Trends", path: "/trends", description: "Long-term performance data" },
       { icon: ShieldCheck, label: "Health Rules", path: "/health-rules", description: "Thresholds & policies" },
-    ]
+    ],
   },
   {
     label: "Platform",
     items: [
-      { icon: Wand2, label: "Onboarding Studio", path: "/onboarding", description: "Connect new applications" },
+      { icon: Wand2, label: "Onboarding Studio", path: "/onboarding", description: "Connect new applications", requiredMinRole: "TEAM_ADMIN" },
       { icon: Users, label: "Teams & Ownership", path: "/teams", description: "People & responsibilities" },
-      { icon: Settings, label: "Settings & Admin", path: "/settings", description: "Configuration & access" },
-    ]
+      { icon: Settings, label: "Settings & Admin", path: "/settings", description: "Configuration & access", requiredPermission: "manage_settings" },
+    ],
   },
   {
     label: "Governance",
     items: [
-      { icon: Wrench, label: "Maintenance Windows", path: "/maintenance", description: "Scheduled downtime windows" },
-      { icon: Target, label: "SLA / SLO Settings", path: "/sla", description: "Objectives & error budgets" },
-      { icon: FileText, label: "Audit Logs", path: "/audit", description: "Activity & change history" },
-      { icon: Shield, label: "Roles & Permissions", path: "/roles", description: "Access control & user roles" },
-      { icon: Activity, label: "System Status", path: "/system-status", description: "Platform health & uptime" },
-    ]
-  }
+      { icon: Wrench, label: "Maintenance Windows", path: "/maintenance", description: "Scheduled downtime windows", requiredMinRole: "TEAM_ADMIN" },
+      { icon: Target, label: "SLA / SLO Settings", path: "/sla", description: "Objectives & error budgets", requiredMinRole: "TEAM_ADMIN" },
+      { icon: FileText, label: "Audit Logs", path: "/audit", description: "Activity & change history", requiredPermission: "view_audit" },
+      { icon: Shield, label: "Roles & Permissions", path: "/roles", description: "Access control & user roles", requiredPermission: "manage_roles" },
+      { icon: Activity, label: "System Status", path: "/system-status", description: "Platform health & uptime", requiredPermission: "view_admin_tools" },
+    ],
+  },
 ]
 
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed } = useApp()
+  const { user } = useAuth()
   const location = useLocation()
+
+  const isVisible = (item: NavItem): boolean => {
+    if (item.requiredPermission && !can(user, item.requiredPermission)) return false
+    if (item.requiredMinRole && !hasMinRole(user, item.requiredMinRole)) return false
+    return true
+  }
+
+  const visibleSections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(isVisible),
+  })).filter((section) => section.items.length > 0)
 
   return (
     <motion.aside
@@ -95,7 +123,7 @@ export function Sidebar() {
         {/* Navigation */}
         <ScrollArea className="flex-1 py-3">
           <nav className="px-2 space-y-0">
-            {NAV_SECTIONS.map((section) => (
+            {visibleSections.map((section) => (
               <div key={section.label} className="mb-4">
                 <AnimatePresence>
                   {!sidebarCollapsed && (

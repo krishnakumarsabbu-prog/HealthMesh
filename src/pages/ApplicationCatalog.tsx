@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Search, Server, ArrowUpRight, Plus, Grid3x3, List, Star, StarOff, X, ChevronRight, Activity, Zap, TriangleAlert as AlertTriangle, Clock, Users, Link2, Filter, SlidersHorizontal, Eye, Tag, TrendingUp, TrendingDown, CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Layers } from "lucide-react"
+import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import { AreaChart, Area, ResponsiveContainer } from "recharts"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -330,9 +331,11 @@ export function ApplicationCatalog() {
           title="Application Catalog"
           description={`${counts.all} applications monitored · ${counts.critical + counts.degraded + counts.warning} need attention`}
           actions={
-            <Button size="sm" className="gap-2">
-              <Plus className="w-3.5 h-3.5" /> Add Application
-            </Button>
+            <PermissionGuard action="edit_apps">
+              <Button size="sm" className="gap-2">
+                <Plus className="w-3.5 h-3.5" /> Add Application
+              </Button>
+            </PermissionGuard>
           }
         />
 

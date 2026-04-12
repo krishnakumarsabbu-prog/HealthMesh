@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { PermissionGuard } from "@/components/auth/PermissionGuard"
 import { useApi } from "@/hooks/useApi"
 import { listTeams, type Team as ApiTeam } from "@/lib/api/misc"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
@@ -114,9 +115,11 @@ export function TeamsOwnership() {
         title="Teams & Ownership"
         description="Manage team ownership, responsibilities, on-call rotation, and application accountability"
         actions={
-          <Button size="sm" className="gap-2">
-            <Plus className="w-3.5 h-3.5" /> Add Team
-          </Button>
+          <PermissionGuard action="view_all_teams">
+            <Button size="sm" className="gap-2">
+              <Plus className="w-3.5 h-3.5" /> Add Team
+            </Button>
+          </PermissionGuard>
         }
       />
 
@@ -296,9 +299,11 @@ export function TeamsOwnership() {
                     <motion.div key="members" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs text-muted-foreground">{(MEMBERS_BY_TEAM[selectedTeam.name] || []).length} members</span>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
-                          <UserPlus className="w-3 h-3" /> Add Member
-                        </Button>
+                        <PermissionGuard action="add_team_member">
+                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
+                            <UserPlus className="w-3 h-3" /> Add Member
+                          </Button>
+                        </PermissionGuard>
                       </div>
                       {(MEMBERS_BY_TEAM[selectedTeam.name] || []).map(m => (
                         <div key={m.email} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-muted/30 transition-colors group">
