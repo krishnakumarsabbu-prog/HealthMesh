@@ -1,5 +1,8 @@
-import type { ConnectorInstance, ConnectorTemplate } from "@/lib/api/connectors"
+import type { ConnectorInstanceRow } from "@/lib/api/connectors"
 import { safeString, safeNumber, safeArray, normalizeConnectorStatus, normalizeEnvironment } from "./utils"
+
+type ConnectorInstance = ConnectorInstanceRow
+type ConnectorTemplate = { id: string; name: string; category: string; description: string; version: string; fields: Array<{ key: string; label: string; type: string; required?: boolean; options?: string[] }>; capabilities: string[]; popular: boolean }
 
 const ABBR_MAP: Record<string, string> = {
   "Datadog": "DD", "Prometheus": "PR", "AWS CloudWatch": "CW", "Splunk": "SP",
@@ -83,29 +86,31 @@ export interface ConnectorInstanceModel {
   healthScore: number; appsConnected: number; usageCount: number
   capabilities: string[]; description: string
   abbr: string; iconBg: string; bgColor: string
-  config: Record<string, string>
+  lob_id: string | null; managedBy: string | null
 }
 
 export function mapConnectorInstance(a: ConnectorInstance): ConnectorInstanceModel {
-  const name = safeString(a.template_id)
+  const templateId = safeString(a.template_id)
+  const displayName = safeString(a.name)
   return {
     id: safeString(a.id),
-    templateId: name,
-    name: safeString(a.name),
+    templateId,
+    name: displayName,
     category: safeString(a.category, "APM"),
     status: normalizeConnectorStatus(a.status),
     environment: normalizeEnvironment(a.environment),
-    version: safeString(a.version),
-    lastSync: safeString(a.last_sync, "—"),
-    healthScore: safeNumber(a.health_pct),
-    appsConnected: safeNumber(a.app_count),
-    usageCount: 0,
-    capabilities: CAPABILITIES_MAP[name] ?? [],
-    description: DESCRIPTIONS_MAP[name] ?? "",
-    abbr: connectorAbbr(name),
-    iconBg: connectorIconBg(name),
-    bgColor: connectorBgColor(name),
-    config: (a.config as Record<string, string>) ?? {},
+    version: safeString((a as any).version || (a as any).version, ""),
+    lastSync: safeString((a as any).last_sync, "—"),
+    healthScore: safeNumber((a as any).health_score ?? (a as any).health_pct ?? 0),
+    appsConnected: safeNumber((a as any).apps_connected ?? (a as any).app_count ?? 0),
+    usageCount: safeNumber((a as any).usage_count ?? 0),
+    capabilities: ((a as any).capabilities as string[] | undefined) ?? CAPABILITIES_MAP[templateId] ?? [],
+    description: safeString((a as any).description, DESCRIPTIONS_MAP[templateId] ?? ""),
+    abbr: safeString((a as any).abbr, connectorAbbr(templateId)),
+    iconBg: safeString((a as any).icon_bg, connectorIconBg(templateId)),
+    bgColor: safeString((a as any).bg_color, connectorBgColor(templateId)),
+    lob_id: (a as any).lob_id ?? null,
+    managedBy: (a as any).managed_by ?? null,
   }
 }
 

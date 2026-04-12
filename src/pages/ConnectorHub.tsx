@@ -37,6 +37,8 @@ function apiToConnector(a: Parameters<typeof mapConnectorInstance>[0]): Connecto
     bgColor: m.bgColor,
     iconBg: m.iconBg,
     abbr: m.abbr,
+    lob_id: m.lob_id,
+    managedBy: m.managedBy,
   }
 }
 

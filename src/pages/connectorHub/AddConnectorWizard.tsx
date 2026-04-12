@@ -9,6 +9,7 @@ import { CONNECTOR_TEMPLATES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
 import { useAuth } from "@/context/AuthContext"
+import { createConnectorInstance } from "@/lib/api/connectors"
 
 interface Props {
   onClose: () => void
@@ -104,8 +105,39 @@ export function AddConnectorWizard({ onClose }: Props) {
 
   const lobId = user?.lob_id || null
   const lobName = user?.lob_name || null
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
 
   const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
+
+  async function handleActivate() {
+    if (!selectedTemplate || !template) return
+    setSaving(true)
+    setSaveError("")
+    try {
+      await createConnectorInstance({
+        name: connectorName || template.name,
+        template_id: selectedTemplate,
+        category: template.category,
+        status: "active",
+        environment,
+        lob_id: lobId,
+        managed_by: lobName,
+        version: "",
+        health_score: 100,
+        capabilities: selectedCapabilities,
+        description: template.description,
+        abbr: template.abbr,
+        icon_bg: template.iconBg,
+        bg_color: "",
+      })
+      onClose()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save connector")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const template = CONNECTOR_TEMPLATES.find(t => t.id === selectedTemplate)
   const authConfig = selectedTemplate ? (CONNECTOR_AUTH_CONFIG[selectedTemplate] || CONNECTOR_AUTH_CONFIG.custom) : null
@@ -533,8 +565,12 @@ export function AddConnectorWizard({ onClose }: Props) {
                       </ul>
                     </div>
 
-                    <Button className="w-full gap-2 h-11 text-sm font-semibold" onClick={onClose}>
-                      <Zap className="w-4 h-4" /> Activate Connector
+                    {saveError && (
+                      <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-500">{saveError}</div>
+                    )}
+                    <Button className="w-full gap-2 h-11 text-sm font-semibold" onClick={handleActivate} disabled={saving}>
+                      {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      {saving ? "Activating..." : "Activate Connector"}
                     </Button>
                   </div>
                 )}
