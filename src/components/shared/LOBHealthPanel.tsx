@@ -21,11 +21,11 @@ function buildLOBHealthData(lobs: Lob[], teams: OrgTeam[]): LOBHealthData[] {
   return lobs.map(lob => {
     const lobTeams = teams.filter(t => t.lob_id === lob.id)
     const avgScore = lobTeams.length > 0
-      ? Math.round(lobTeams.reduce((s, t) => s + t.health_score, 0) / lobTeams.length)
+      ? Math.round(lobTeams.reduce((s, t) => s + (t.health_score ?? 100), 0) / lobTeams.length)
       : 100
-    const healthy = lobTeams.filter(t => t.health_score >= 90).length
-    const warning = lobTeams.filter(t => t.health_score >= 70 && t.health_score < 90).length
-    const critical = lobTeams.filter(t => t.health_score < 70).length
+    const healthy = lobTeams.filter(t => (t.health_score ?? 100) >= 90).length
+    const warning = lobTeams.filter(t => (t.health_score ?? 100) >= 70 && (t.health_score ?? 100) < 90).length
+    const critical = lobTeams.filter(t => (t.health_score ?? 100) < 70).length
     return {
       lob,
       teams: lobTeams,
@@ -64,7 +64,7 @@ function TeamRow({ team }: { team: OrgTeam }) {
     <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors">
       <Users className="w-3 h-3 text-muted-foreground shrink-0" />
       <span className="text-xs text-foreground flex-1 truncate">{team.name}</span>
-      <ScoreBar score={team.health_score} />
+      <ScoreBar score={team.health_score ?? 100} />
     </div>
   )
 }

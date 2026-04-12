@@ -48,8 +48,8 @@ function ProjectCard({ project }: { project: Project }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex items-center gap-4 px-4 py-3 rounded-xl border border-border/50 bg-card hover:border-primary/30 hover:bg-primary/2 transition-all duration-150 cursor-pointer group"
     >
-      <div className={cn("w-8 h-8 rounded-lg border flex items-center justify-center shrink-0", scoreBg(project.health_score))}>
-        <FolderOpen className={cn("w-4 h-4", scoreColor(project.health_score))} />
+      <div className={cn("w-8 h-8 rounded-lg border flex items-center justify-center shrink-0", scoreBg(project.health_score ?? 100))}>
+        <FolderOpen className={cn("w-4 h-4", scoreColor(project.health_score ?? 100))} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -70,11 +70,11 @@ function ProjectCard({ project }: { project: Project }) {
       <div className="flex items-center gap-4 shrink-0">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Layers className="w-3.5 h-3.5" />
-          <span>{project.app_count} apps</span>
+          <span>{project.app_count ?? 0} apps</span>
         </div>
-        <div className={cn("flex items-center gap-1.5 text-xs font-bold font-mono tabular-nums", scoreColor(project.health_score))}>
-          <StatusIcon score={project.health_score} />
-          {project.health_score}
+        <div className={cn("flex items-center gap-1.5 text-xs font-bold font-mono tabular-nums", scoreColor(project.health_score ?? 100))}>
+          <StatusIcon score={project.health_score ?? 100} />
+          {project.health_score ?? 100}
         </div>
       </div>
     </motion.div>
@@ -246,7 +246,7 @@ function LobSection({ hierarchy, search, canCreate, onCreateProject, defaultOpen
 
   const totalProjects = hierarchy.teams.reduce((s, t) => s + t.projects.length, 0)
   const avgHealth = hierarchy.teams.length > 0
-    ? Math.round(hierarchy.teams.reduce((s, t) => s + t.team.health_score, 0) / hierarchy.teams.length)
+    ? Math.round(hierarchy.teams.reduce((s, t) => s + (t.team.health_score ?? 100), 0) / hierarchy.teams.length)
     : 0
 
   if (filteredTeams.length === 0) return null
@@ -286,7 +286,7 @@ function LobSection({ hierarchy, search, canCreate, onCreateProject, defaultOpen
                 teamId={team.id}
                 teamName={team.name}
                 lobName={hierarchy.lob.name}
-                healthScore={team.health_score}
+                healthScore={team.health_score ?? 100}
                 projects={projects}
                 defaultOpen={filteredTeams.length === 1}
                 canCreate={canCreate}
@@ -321,8 +321,8 @@ export function ProjectsPage() {
       lobs: hierarchy.length,
       teams: allTeams.length,
       projects: allProjects.length,
-      healthy: allProjects.filter(p => p.health_score >= 90).length,
-      atRisk: allProjects.filter(p => p.health_score < 70).length,
+      healthy: allProjects.filter(p => (p.health_score ?? 100) >= 90).length,
+      atRisk: allProjects.filter(p => (p.health_score ?? 100) < 70).length,
     }
   }, [hierarchy])
 

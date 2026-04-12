@@ -372,7 +372,7 @@ function EditUserDrawer({ user, lobs, teams, projects, onClose, onSave }: EditUs
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Member since</span>
-              <span className="font-medium text-foreground">{new Date(user.created_at).toLocaleDateString()}</span>
+              <span className="font-medium text-foreground">{user.created_at ? new Date(user.created_at).toLocaleDateString() : "—"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Last active</span>
@@ -601,7 +601,7 @@ export function UserManagementPage() {
                             ) : <span className="text-xs text-muted-foreground/50">—</span>}
                           </td>
                           <td className="px-4 py-3">
-                            <StatusPill status={u.status} />
+                            <StatusPill status={u.status ?? "active"} />
                           </td>
                           <td className="px-4 py-3 hidden xl:table-cell text-xs text-muted-foreground">
                             {u.last_active_at ? new Date(u.last_active_at).toLocaleDateString() : "Never"}

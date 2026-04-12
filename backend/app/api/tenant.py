@@ -1,11 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.models.identity import Lob, OrgTeam, Project, User
 from app.models.apps import Application
-from app.core.auth_deps import get_current_user
+from app.core.auth_deps import get_current_user, require_role
+from app.core.audit import write_audit_log
 
 router = APIRouter(prefix="/api", tags=["tenant"])
+
+
+class OrgTeamCreate(BaseModel):
+    name: str
+    lob_id: str
+    description: Optional[str] = None
 
 
 @router.get("/lobs")
@@ -26,6 +36,41 @@ def list_teams(db: Session = Depends(get_db), current_user: User = Depends(get_c
         query = query.filter(OrgTeam.id == current_user.team_id)
     teams = query.all()
     return [{"id": t.id, "name": t.name, "lob_id": t.lob_id} for t in teams]
+
+
+@router.post("/teams", status_code=status.HTTP_201_CREATED)
+def create_team(
+    payload: OrgTeamCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("LOB_ADMIN")),
+):
+    lob = db.query(Lob).filter(Lob.id == payload.lob_id).first()
+    if not lob:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid lob_id")
+
+    if current_user.role_id == "LOB_ADMIN" and current_user.lob_id and current_user.lob_id != payload.lob_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create a team outside your LOB")
+
+    team_id = str(uuid.uuid4())
+    new_team = OrgTeam(id=team_id, name=payload.name, lob_id=payload.lob_id)
+    db.add(new_team)
+    db.flush()
+
+    write_audit_log(
+        db=db,
+        actor=current_user,
+        action="CREATE",
+        resource_type="OrgTeam",
+        resource_id=team_id,
+        resource_name=payload.name,
+        details=f"Created team '{payload.name}' in LOB {lob.name}",
+        ip_address=request.client.host if request.client else "",
+    )
+
+    db.commit()
+    db.refresh(new_team)
+    return {"id": new_team.id, "name": new_team.name, "lob_id": new_team.lob_id}
 
 
 @router.get("/projects")

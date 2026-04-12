@@ -1,4 +1,3 @@
-import { supabase } from "@/lib/supabase"
 import { api } from "@/lib/api/client"
 
 export interface ConnectorTestResult {
@@ -32,12 +31,7 @@ export interface ConnectorInstanceRow {
 }
 
 export async function listConnectorInstances(): Promise<ConnectorInstanceRow[]> {
-  const { data, error } = await supabase
-    .from("connector_instances")
-    .select("*")
-    .order("created_at", { ascending: false })
-  if (error) throw error
-  return (data ?? []) as ConnectorInstanceRow[]
+  return api.get<ConnectorInstanceRow[]>("/api/connectors/instances")
 }
 
 export async function createConnectorInstance(payload: {
@@ -56,36 +50,18 @@ export async function createConnectorInstance(payload: {
   icon_bg?: string
   bg_color?: string
 }): Promise<ConnectorInstanceRow> {
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data, error } = await supabase
-    .from("connector_instances")
-    .insert({ ...payload, created_by: user?.id ?? null })
-    .select()
-    .single()
-  if (error) throw error
-  return data as ConnectorInstanceRow
+  return api.post<ConnectorInstanceRow>("/api/connectors/instances", payload)
 }
 
 export async function deleteConnectorInstance(id: string): Promise<void> {
-  const { error } = await supabase
-    .from("connector_instances")
-    .delete()
-    .eq("id", id)
-  if (error) throw error
+  await api.delete(`/api/connectors/instances/${id}`)
 }
 
 export async function updateConnectorInstance(
   id: string,
   payload: Partial<ConnectorInstanceRow>
 ): Promise<ConnectorInstanceRow> {
-  const { data, error } = await supabase
-    .from("connector_instances")
-    .update(payload)
-    .eq("id", id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as ConnectorInstanceRow
+  return api.put<ConnectorInstanceRow>(`/api/connectors/instances/${id}`, payload)
 }
 
 export async function testConnectorConnection(payload: {
@@ -94,8 +70,7 @@ export async function testConnectorConnection(payload: {
   environment?: string
 }): Promise<ConnectorTestResult> {
   try {
-    const result = await api.post<ConnectorTestResult>("/api/connectors/test", payload)
-    return result
+    return await api.post<ConnectorTestResult>("/api/connectors/test", payload)
   } catch {
     return { success: false, message: "Could not reach the connector endpoint. Check your credentials and network." }
   }

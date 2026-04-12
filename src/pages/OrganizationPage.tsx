@@ -262,10 +262,10 @@ export function OrganizationPage() {
 
   const totalTeams = hierarchy.reduce((a, h) => a + h.teams.length, 0)
   const totalProjects = hierarchy.reduce((a, h) => a + h.teams.reduce((b, t) => b + t.projects.length, 0), 0)
-  const totalApps = hierarchy.reduce((a, h) => a + h.teams.reduce((b, t) => b + t.projects.reduce((c, p) => c + p.app_count, 0), 0), 0)
+  const totalApps = hierarchy.reduce((a, h) => a + h.teams.reduce((b, t) => b + t.projects.reduce((c, p) => c + (p.app_count ?? 0), 0), 0), 0)
   const avgHealth = hierarchy.length > 0
     ? Math.round(hierarchy.reduce((a, h) => {
-        const scores = h.teams.flatMap(t => t.projects.map(p => p.health_score))
+        const scores = h.teams.flatMap(t => t.projects.map(p => p.health_score ?? 100))
         return a + (scores.length ? scores.reduce((x, y) => x + y, 0) / scores.length : 100)
       }, 0) / hierarchy.length)
     : 0
@@ -338,7 +338,7 @@ export function OrganizationPage() {
               const lobExpanded = expandedLobs.has(h.lob.id)
               const lobAvgHealth = h.teams.length > 0
                 ? Math.round(h.teams.reduce((a, t) => {
-                    const s = t.projects.map(p => p.health_score)
+                    const s = t.projects.map(p => p.health_score ?? 100)
                     return a + (s.length ? s.reduce((x, y) => x + y, 0) / s.length : 100)
                   }, 0) / h.teams.length)
                 : 100
@@ -402,8 +402,8 @@ export function OrganizationPage() {
                           ) : h.teams.map((t, teamIdx) => {
                             const teamExpanded = expandedTeams.has(t.team.id)
                             const teamAvgHealth = t.projects.length > 0
-                              ? Math.round(t.projects.reduce((a, p) => a + p.health_score, 0) / t.projects.length)
-                              : t.team.health_score
+                              ? Math.round(t.projects.reduce((a, p) => a + (p.health_score ?? 100), 0) / t.projects.length)
+                              : (t.team.health_score ?? 100)
 
                             return (
                               <div key={t.team.id}>
@@ -432,7 +432,7 @@ export function OrganizationPage() {
                                   </div>
                                   <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
                                     <span className="hidden sm:block">{t.projects.length} projects</span>
-                                    <span className="hidden md:block">{t.projects.reduce((a, p) => a + p.app_count, 0)} apps</span>
+                                    <span className="hidden md:block">{t.projects.reduce((a, p) => a + (p.app_count ?? 0), 0)} apps</span>
                                     <PermissionGuard action="create_project">
                                       <button
                                         onClick={e => { e.stopPropagation(); setAddProject({ team: t.team }); setExpandedTeams(prev => new Set([...prev, t.team.id])) }}
@@ -459,7 +459,7 @@ export function OrganizationPage() {
                                       ) : (
                                         <div className="pl-20 pr-5 py-2 space-y-1">
                                           {t.projects.map((p, pIdx) => {
-                                            const pc = healthColor(p.health_score)
+                                            const pc = healthColor(p.health_score ?? 100)
                                             return (
                                               <motion.div
                                                 key={p.id}
@@ -477,12 +477,12 @@ export function OrganizationPage() {
                                                 </div>
                                                 <div className="flex items-center gap-3 shrink-0">
                                                   <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                    <Server className="w-3 h-3" /> {p.app_count} apps
+                                                    <Server className="w-3 h-3" /> {p.app_count ?? 0} apps
                                                   </div>
                                                   <div className="w-16 hidden md:block">
-                                                    <HealthBar score={p.health_score} />
+                                                    <HealthBar score={p.health_score ?? 100} />
                                                   </div>
-                                                  <ScoreBadge score={p.health_score} />
+                                                  <ScoreBadge score={p.health_score ?? 100} />
                                                 </div>
                                               </motion.div>
                                             )
