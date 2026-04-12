@@ -1,21 +1,29 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from app.repositories import DependencyNodeRepository, DependencyEdgeRepository
+from app.models import DependencyNode, DependencyEdge
 
 
 class DependencyService:
     def __init__(self, db: Session):
         self.db = db
-        self.node_repo = DependencyNodeRepository(db)
-        self.edge_repo = DependencyEdgeRepository(db)
 
-    def get_dependency_map(self) -> Dict[str, Any]:
-        nodes = self.node_repo.get_all()
-        edges = self.edge_repo.get_all_edges()
+    def get_dependency_map(self, app_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+        node_q = self.db.query(DependencyNode)
+        if app_ids is not None:
+            node_q = node_q.filter(DependencyNode.id.in_(app_ids))
+        nodes = node_q.all()
+
+        node_id_set = {n.id for n in nodes}
+        edge_q = self.db.query(DependencyEdge)
+        if app_ids is not None:
+            edge_q = edge_q.filter(
+                DependencyEdge.source_id.in_(node_id_set),
+                DependencyEdge.target_id.in_(node_id_set),
+            )
+        edges = edge_q.all()
 
         node_data = [self._serialize_node(n) for n in nodes]
         edge_data = [self._serialize_edge(e) for e in edges]
-
         stats = self._compute_stats(nodes, edges)
 
         return {

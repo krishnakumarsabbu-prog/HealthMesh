@@ -1,9 +1,10 @@
+from typing import Optional, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.core.security import decode_access_token
-from app.models.identity import User
+from app.models.identity import User, OrgTeam, Project
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -56,3 +57,34 @@ def require_role(minimum_role: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
     return dependency
+
+
+def get_scoped_app_ids(user: User, db: Session) -> Optional[List[str]]:
+    """
+    Returns a list of app IDs the user is allowed to see, or None if the user has no restrictions.
+    LOB_ADMIN without lob_id => no restriction (sees all).
+    """
+    role = user.role_id
+
+    if role == "LOB_ADMIN":
+        if not user.lob_id:
+            return None
+        lob_team_ids = [t.id for t in db.query(OrgTeam).filter(OrgTeam.lob_id == user.lob_id).all()]
+        project_ids = [p.id for p in db.query(Project).filter(Project.team_id.in_(lob_team_ids)).all()]
+
+    elif role == "TEAM_ADMIN":
+        if not user.team_id:
+            return None
+        project_ids = [p.id for p in db.query(Project).filter(Project.team_id == user.team_id).all()]
+
+    elif role in ("PROJECT_ADMIN", "USER"):
+        if not user.project_id:
+            return []
+        project_ids = [user.project_id]
+
+    else:
+        return None
+
+    from app.models import Application
+    app_ids = [a.id for a in db.query(Application.id).filter(Application.project_id.in_(project_ids)).all()]
+    return app_ids

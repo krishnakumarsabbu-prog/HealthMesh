@@ -1,28 +1,31 @@
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from app.repositories import AiInsightRepository
+from app.models import AiInsight
 
 
 class AiInsightService:
     def __init__(self, db: Session):
         self.db = db
-        self.repo = AiInsightRepository(db)
 
-    def list_insights(self, priority: Optional[str] = None, insight_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_insights(self, priority: Optional[str] = None, insight_type: Optional[str] = None, app_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        q = self.db.query(AiInsight)
+        if app_ids is not None:
+            q = q.filter(AiInsight.app_id.in_(app_ids))
         if priority:
-            insights = self.repo.get_by_priority(priority)
-        elif insight_type:
-            insights = self.repo.get_by_type(insight_type)
-        else:
-            insights = self.repo.get_all()
-        return [self._serialize(i) for i in insights]
+            q = q.filter(AiInsight.priority == priority)
+        if insight_type:
+            q = q.filter(AiInsight.insight_type == insight_type)
+        return [self._serialize(i) for i in q.all()]
 
     def get_insights_by_app(self, app_id: str) -> List[Dict[str, Any]]:
-        insights = self.repo.get_by_app(app_id)
+        insights = self.db.query(AiInsight).filter(AiInsight.app_id == app_id).all()
         return [self._serialize(i) for i in insights]
 
-    def get_recent_highlights(self, limit: int = 3) -> List[Dict[str, Any]]:
-        insights = self.repo.get_recent(limit)
+    def get_recent_highlights(self, limit: int = 3, app_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        q = self.db.query(AiInsight).order_by(AiInsight.id.desc())
+        if app_ids is not None:
+            q = q.filter(AiInsight.app_id.in_(app_ids))
+        insights = q.limit(limit).all()
         return [
             {
                 "id": i.id,

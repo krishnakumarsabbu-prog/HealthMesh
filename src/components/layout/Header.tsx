@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap, Building2 } from "lucide-react"
+import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap, Building2, Layers, FolderOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
 import { useApp, ENVIRONMENTS } from "@/context/AppContext"
@@ -77,6 +77,32 @@ export function Header() {
         )}
         <span className="font-semibold text-foreground truncate">{pageMeta.label}</span>
       </div>
+
+      {user && (
+        <div className="hidden lg:flex items-center gap-1 px-3 py-1 rounded-lg bg-muted/50 border border-border/50 text-[11px] text-muted-foreground max-w-xs">
+          {user.lob_name && (
+            <span className="flex items-center gap-1 shrink-0">
+              <Building2 className="w-3 h-3 shrink-0" />
+              <span className="font-medium text-foreground truncate">{user.lob_name}</span>
+            </span>
+          )}
+          {user.team_name && (
+            <>
+              {user.lob_name && <ChevronRight className="w-3 h-3 opacity-40 shrink-0" />}
+              <span className="truncate">{user.team_name}</span>
+            </>
+          )}
+          {user.project_name && (
+            <>
+              <ChevronRight className="w-3 h-3 opacity-40 shrink-0" />
+              <span className="truncate">{user.project_name}</span>
+            </>
+          )}
+          <span className={cn("ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide shrink-0", getRoleBadgeColor(user.role_id))}>
+            {getRoleLabel(user.role_id)}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1" />
 
