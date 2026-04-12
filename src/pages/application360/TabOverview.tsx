@@ -1,13 +1,16 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
-import { ShieldCheck, Zap, Activity, TriangleAlert as AlertTriangle, TrendingUp, TrendingDown, RefreshCw, CircleCheck as CheckCircle, Circle as XCircle } from "lucide-react"
+import { ShieldCheck, Zap, Activity, TriangleAlert as AlertTriangle, TrendingUp, TrendingDown, RefreshCw, CircleCheck as CheckCircle, Circle as XCircle, Radio } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HEALTH_SCORE_7D, HEALTH_RULES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppOverview, runHealthCheck, type AppHealthCheckResult } from "@/lib/api/apps"
 import { mapAppOverview } from "@/lib/mappers"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { useHealthSocket } from "@/hooks/useHealthSocket"
+import { useAuth } from "@/context/AuthContext"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -45,9 +48,29 @@ function HealthRing({ score }: { score: number }) {
 export function TabOverview({ appId }: { appId: string }) {
   const [checkResult, setCheckResult] = useState<AppHealthCheckResult | null>(null)
   const [runningCheck, setRunningCheck] = useState(false)
+  const [liveHealthScore, setLiveHealthScore] = useState<number | null>(null)
+  const [liveLatency, setLiveLatency] = useState<number | null>(null)
+  const [liveUptime, setLiveUptime] = useState<number | null>(null)
+  const [liveRpm, setLiveRpm] = useState<number | null>(null)
+  const [liveFlash, setLiveFlash] = useState(false)
 
+  const { token } = useAuth()
   const { data: rawOverview } = useApi(() => getAppOverview(appId), [appId])
   const overview = rawOverview ? mapAppOverview(rawOverview) : null
+
+  const { connected, appHealthMap } = useHealthSocket({ token })
+
+  useEffect(() => {
+    const appData = appHealthMap[appId]
+    if (!appData) return
+    setLiveHealthScore(appData.health_score)
+    setLiveLatency(appData.latency_p99)
+    setLiveUptime(appData.uptime)
+    setLiveRpm(appData.rpm)
+    setLiveFlash(true)
+    const t = setTimeout(() => setLiveFlash(false), 800)
+    return () => clearTimeout(t)
+  }, [appHealthMap, appId])
 
   async function handleCheckHealth() {
     setRunningCheck(true)
@@ -60,7 +83,7 @@ export function TabOverview({ appId }: { appId: string }) {
   }
 
   const app = overview?.app
-  const healthScore = app?.healthScore ?? 94
+  const healthScore = liveHealthScore ?? app?.healthScore ?? 94
   const healthHistory = overview?.healthHistory ?? HEALTH_SCORE_7D
   const latency24h = overview?.latency24h ?? []
   const errorRate24h = overview?.errorRate24h ?? []
@@ -69,21 +92,43 @@ export function TabOverview({ appId }: { appId: string }) {
     ? (errorRate24h.reduce((s, d) => s + d.rate, 0) / errorRate24h.length)
     : null
 
+  const displayLatency = liveLatency ?? app?.latencyP99 ?? 42
+  const displayUptime = liveUptime ?? app?.uptime ?? 99.98
+  const displayRpm = liveRpm ?? app?.rpm ?? 12400
+
   const keyMetrics = [
-    { label: "Uptime (30d)", value: app ? `${app.uptime?.toFixed(2) ?? 99.98}%` : "99.98%", icon: <ShieldCheck className="w-4 h-4" />, color: "text-emerald-500", trend: +0.01 },
-    { label: "P99 Latency", value: app ? `${app.latencyP99 ?? 42}ms` : "42ms", icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8 },
-    { label: "Error Rate", value: avgErrorRate !== null ? `${(avgErrorRate * 100).toFixed(2)}%` : "0.04%", icon: <AlertTriangle className="w-4 h-4" />, color: avgErrorRate !== null && avgErrorRate * 100 > 1 ? "text-red-500" : "text-emerald-500", trend: -0.02 },
-    { label: "Throughput", value: app ? `${((app.rpm ?? 12400) / 1000).toFixed(1)}K rpm` : "12.4K rpm", icon: <Activity className="w-4 h-4" />, color: "text-blue-500", trend: +11 },
+    { label: "Uptime (30d)", value: `${displayUptime.toFixed(2)}%`, icon: <ShieldCheck className="w-4 h-4" />, color: "text-emerald-500", trend: +0.01, live: liveUptime !== null },
+    { label: "P99 Latency", value: `${Math.round(displayLatency)}ms`, icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8, live: liveLatency !== null },
+    { label: "Error Rate", value: avgErrorRate !== null ? `${(avgErrorRate * 100).toFixed(2)}%` : "0.04%", icon: <AlertTriangle className="w-4 h-4" />, color: avgErrorRate !== null && avgErrorRate * 100 > 1 ? "text-red-500" : "text-emerald-500", trend: -0.02, live: false },
+    { label: "Throughput", value: `${(displayRpm / 1000).toFixed(1)}K rpm`, icon: <Activity className="w-4 h-4" />, color: "text-blue-500", trend: +11, live: liveRpm !== null },
   ]
 
-  const latencyScore = app ? Math.min(100, Math.round(100 - (app.latencyP99 / 500) * 100)) : 96
+  const latencyScore = Math.min(100, Math.round(100 - (displayLatency / 500) * 100))
   const errorScore = avgErrorRate !== null ? Math.max(0, Math.round(100 - avgErrorRate * 100 * 10)) : 99
   const infraScore = 88
-  const availabilityScore = app ? Math.round(app.uptime ?? 99) : 99
+  const availabilityScore = Math.round(displayUptime)
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={connected ? "healthy" : "outline"}
+            size="sm"
+            className={cn(
+              "transition-all duration-300",
+              liveFlash && connected && "ring-2 ring-emerald-500/40"
+            )}
+          >
+            <Radio className={cn("w-3 h-3 mr-1", connected ? "text-emerald-500" : "text-muted-foreground")} />
+            {connected ? "Live" : "Polling"}
+          </Badge>
+          {connected && liveHealthScore !== null && (
+            <span className="text-[10px] text-muted-foreground">
+              Socket active · updates every 30s
+            </span>
+          )}
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -164,8 +209,19 @@ export function TabOverview({ appId }: { appId: string }) {
       </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="premium-card p-5 flex flex-col items-center justify-center gap-3">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider self-start">Health Score</div>
+        <div className={cn(
+          "premium-card p-5 flex flex-col items-center justify-center gap-3 transition-all duration-300",
+          liveHealthScore !== null && liveFlash && "ring-1 ring-emerald-500/30"
+        )}>
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Health Score</div>
+            {liveHealthScore !== null && connected && (
+              <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
           <HealthRing score={healthScore} />
           <div className="w-full space-y-2 mt-1">
             {[
@@ -213,10 +269,18 @@ export function TabOverview({ appId }: { appId: string }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {keyMetrics.map((m, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-            className="premium-card p-4">
+            className={cn(
+              "premium-card p-4 transition-all duration-300",
+              m.live && liveFlash && "ring-1 ring-emerald-500/30"
+            )}>
             <div className="flex items-center gap-2 mb-2">
               <span className={cn("w-7 h-7 rounded-lg bg-muted/50 flex items-center justify-center", m.color)}>{m.icon}</span>
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{m.label}</span>
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider truncate">{m.label}</span>
+                {m.live && connected && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                )}
+              </div>
             </div>
             <div className="text-xl font-bold text-foreground">{m.value}</div>
             <div className={cn("flex items-center gap-1 text-xs font-semibold mt-1", m.trend > 0 ? "text-emerald-500" : "text-emerald-500")}>

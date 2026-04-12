@@ -12,6 +12,7 @@ from app.api import (
     auth, tenant, users, projects
 )
 from app.api import app_connectors
+from app.api import ws_health
 
 import app.connectors.datadog  # noqa: F401
 import app.connectors.prometheus  # noqa: F401
@@ -75,6 +76,7 @@ app.include_router(tenant.router)
 app.include_router(app_connectors.router)
 app.include_router(users.router)
 app.include_router(projects.router)
+app.include_router(ws_health.router)
 
 
 @app.get("/health")

@@ -1,6 +1,6 @@
-import { motion } from "framer-motion"
-import { useState, useEffect } from "react"
-import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, TrendingDown, Shield, ArrowUpRight, Sparkles, RefreshCw, Server, ChevronRight, Circle as XCircle, CircleAlert as AlertCircle, Flame, ArrowRight } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect, useRef } from "react"
+import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, Clock, TrendingDown, Shield, ArrowUpRight, Sparkles, RefreshCw, Server, ChevronRight, Circle as XCircle, CircleAlert as AlertCircle, Flame, ArrowRight, Radio } from "lucide-react"
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip,
   BarChart, Bar
@@ -14,6 +14,8 @@ import { useApi } from "@/hooks/useApi"
 import { getDashboardOverview } from "@/lib/api/dashboard"
 import { mapDashboardOverview } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
+import { useHealthSocket } from "@/hooks/useHealthSocket"
+import { useAuth } from "@/context/AuthContext"
 
 const FALLBACK_INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
   d: `D${i + 1}`,
@@ -101,12 +103,62 @@ const TOOLTIP_STYLE = {
 
 const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } }
 
+function FlashDot({ flash }: { flash: boolean }) {
+  return (
+    <AnimatePresence>
+      {flash && (
+        <motion.span
+          key="flash"
+          className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400"
+          initial={{ opacity: 1, scale: 1.5 }}
+          animate={{ opacity: 0, scale: 0.5 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6 }}
+        />
+      )}
+    </AnimatePresence>
+  )
+}
+
 export function ExecutiveOverview() {
   const [refreshing, setRefreshing] = useState(false)
   const [envFilter, setEnvFilter] = useState("All")
+  const [socketFlash, setSocketFlash] = useState(false)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const { token } = useAuth()
   const { data: rawOverview, loading, refetch } = useApi(getDashboardOverview)
   const overview = rawOverview ? mapDashboardOverview(rawOverview) : null
+
+  const [liveAvgScore, setLiveAvgScore] = useState<number | null>(null)
+  const [liveAvgLatency, setLiveAvgLatency] = useState<number | null>(null)
+  const [liveHealthy, setLiveHealthy] = useState<number | null>(null)
+  const [liveWarning, setLiveWarning] = useState<number | null>(null)
+  const [liveCritical, setLiveCritical] = useState<number | null>(null)
+
+  const { connected, summary: socketSummary } = useHealthSocket({
+    token,
+    onUpdate: () => {
+      setSocketFlash(true)
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = setTimeout(() => setSocketFlash(false), 700)
+    },
+  })
+
+  useEffect(() => {
+    if (!socketSummary) return
+    setLiveAvgScore(socketSummary.avg_health_score)
+    setLiveAvgLatency(socketSummary.avg_latency)
+    setLiveHealthy(socketSummary.healthy_apps)
+    setLiveWarning(socketSummary.warning_apps)
+    setLiveCritical(socketSummary.critical_apps)
+  }, [socketSummary])
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    }
+  }, [])
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -115,14 +167,14 @@ export function ExecutiveOverview() {
   }
 
   const total = overview?.totalApps ?? 0
-  const healthy = overview?.healthyApps ?? 0
-  const degraded = overview?.degradedApps ?? 0
-  const critical = overview?.criticalApps ?? 0
-  const avgScore = overview?.avgHealthScore ?? 0
+  const healthy = liveHealthy ?? overview?.healthyApps ?? 0
+  const degraded = liveWarning ?? overview?.degradedApps ?? 0
+  const critical = liveCritical ?? overview?.criticalApps ?? 0
+  const avgScore = liveAvgScore ?? overview?.avgHealthScore ?? 0
   const activeIncidents = overview?.activeIncidents ?? 0
   const activeAlerts = overview?.activeAlerts ?? 0
   const uptime = overview?.overallUptime ?? 99.9
-  const avgLatency = overview?.avgLatency ?? 0
+  const avgLatency = liveAvgLatency ?? overview?.avgLatency ?? 0
 
   const health24h = overview?.health24h?.map(h => ({
     h: h.hour,
@@ -188,10 +240,15 @@ export function ExecutiveOverview() {
         title="Executive Overview"
         description="Unified real-time health intelligence across your entire application portfolio"
         badge={
-          <Badge variant="healthy" size="sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1" />
-            Live
-          </Badge>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Badge variant={connected ? "healthy" : "outline"} size="sm">
+                <Radio className={cn("w-3 h-3 mr-1", connected ? "text-emerald-500" : "text-muted-foreground")} />
+                {connected ? "Live" : "Polling"}
+              </Badge>
+              <FlashDot flash={socketFlash} />
+            </div>
+          </div>
         }
         actions={
           <div className="flex items-center gap-2">
@@ -335,18 +392,26 @@ export function ExecutiveOverview() {
         {/* ── KPI Trend Cards with Sparklines ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "Health Score", value: avgScore, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: sparklines.score, decimals: 1 },
-            { label: "Avg Response Time", value: avgLatency, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: sparklines.latency },
-            { label: "Open Incidents", value: activeIncidents, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: sparklines.incidents },
-            { label: "System Uptime", value: uptime, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: sparklines.uptime, decimals: 2 },
+            { label: "Health Score", value: avgScore, unit: "/100", delta: "+2.1", up: true, color: "#10b981", data: sparklines.score, decimals: 1, live: liveAvgScore !== null },
+            { label: "Avg Response Time", value: avgLatency, unit: "ms", delta: "−11ms", up: true, color: "#10b981", data: sparklines.latency, live: liveAvgLatency !== null },
+            { label: "Open Incidents", value: activeIncidents, unit: "", delta: "−2 vs 1h ago", up: true, color: "#ef4444", data: sparklines.incidents, live: false },
+            { label: "System Uptime", value: uptime, unit: "%", delta: "SLA 99.9%", up: true, color: "#10b981", data: sparklines.uptime, decimals: 2, live: false },
           ].map((card, i) => (
             <motion.div key={card.label}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.28 + i * 0.06 }}
-              className="premium-card p-4 group hover:shadow-elevation-2 transition-all duration-200"
+              className={cn(
+                "premium-card p-4 group hover:shadow-elevation-2 transition-all duration-200 relative overflow-hidden",
+                card.live && socketFlash && "ring-1 ring-emerald-500/30"
+              )}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{card.label}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{card.label}</span>
+                  {card.live && connected && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  )}
+                </div>
                 <span className={cn(
                   "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
                   card.up ? "text-emerald-600 bg-emerald-500/10 dark:text-emerald-400" : "text-red-500 bg-red-500/10"
