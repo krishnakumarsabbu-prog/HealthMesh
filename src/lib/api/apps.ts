@@ -179,3 +179,45 @@ export interface AppConfiguration {
 export const getAppConfiguration = (id: string) => api.get<AppConfiguration>(`/api/apps/${id}/configuration`);
 export const getAppHealthHistory = (id: string) => api.get<Array<{ label: string; score: number }>>(`/api/apps/${id}/health-history`);
 export const createApp = (body: Partial<AppSummary>) => api.post<AppSummary>("/api/apps", body);
+
+export interface AppConnectorAssignment {
+  assignment_id: number;
+  connector_instance_id: string;
+  connector_name: string;
+  connector_category: string;
+  environment: string;
+  status: string;
+  enabled: boolean;
+  poll_interval_seconds: number;
+  assigned_by: string | null;
+}
+
+export interface ConnectorPollResult {
+  connector_instance_id: string;
+  connector_name: string;
+  connector_category: string;
+  environment: string;
+  health_score: number;
+  status: string;
+  metrics: Record<string, number | string>;
+  capabilities: string[];
+  polled_at: string;
+}
+
+export interface AppHealthCheckResult {
+  app_id: string;
+  composite_health_score: number | null;
+  overall_status: string;
+  connector_count: number;
+  connector_results: ConnectorPollResult[];
+  checked_at: string;
+  message?: string;
+}
+
+export const getAppConnectors = (id: string) => api.get<AppConnectorAssignment[]>(`/api/apps/${id}/connectors`);
+export const assignConnectorToApp = (id: string, body: { connector_instance_id: string; poll_interval_seconds?: number }) =>
+  api.post<{ assignment_id: number; app_id: string; connector_instance_id: string; enabled: boolean }>(`/api/apps/${id}/connectors`, body);
+export const removeConnectorFromApp = (appId: string, connectorInstanceId: string) =>
+  api.delete<{ deleted: boolean }>(`/api/apps/${appId}/connectors/${connectorInstanceId}`);
+export const runHealthCheck = (id: string) => api.post<AppHealthCheckResult>(`/api/apps/${id}/health/check`, {});
+export const getHealthResults = (id: string) => api.get<ConnectorPollResult[]>(`/api/apps/${id}/health/results`);

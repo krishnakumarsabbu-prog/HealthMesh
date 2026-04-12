@@ -3,7 +3,7 @@ from app.models.apps import (
     AppSignal, AppTransaction, AppLogPattern, AppInfraPod,
     AppDependency, AppEndpoint
 )
-from app.models.connectors import ConnectorTemplate, ConnectorInstance
+from app.models.connectors import ConnectorTemplate, ConnectorInstance, AppConnectorAssignment, AppHealthPollResult
 from app.models.health import HealthRule, AppHealthRule
 from app.models.incidents import Incident, Alert
 from app.models.dependencies import DependencyNode, DependencyEdge
@@ -15,7 +15,7 @@ __all__ = [
     "Team", "TeamMember", "Environment", "Application", "AppHealthScore",
     "AppSignal", "AppTransaction", "AppLogPattern", "AppInfraPod",
     "AppDependency", "AppEndpoint",
-    "ConnectorTemplate", "ConnectorInstance",
+    "ConnectorTemplate", "ConnectorInstance", "AppConnectorAssignment", "AppHealthPollResult",
     "HealthRule", "AppHealthRule",
     "Incident", "Alert",
     "DependencyNode", "DependencyEdge",

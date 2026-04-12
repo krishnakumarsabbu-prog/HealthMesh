@@ -8,6 +8,7 @@ from app.services.ai_insight_service import AiInsightService
 from app.services.health_score_service import HealthScoreService
 from app.services.trend_service import TrendService
 from app.services.settings_service import SettingsService
+from app.services.health_check_orchestrator import HealthCheckOrchestrator
 
 __all__ = [
     "AppService",
@@ -20,4 +21,5 @@ __all__ = [
     "HealthScoreService",
     "TrendService",
     "SettingsService",
+    "HealthCheckOrchestrator",
 ]

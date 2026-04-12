@@ -22,6 +22,7 @@ import { TabIncidents } from "./application360/TabIncidents"
 import { TabHealthRules } from "./application360/TabHealthRules"
 import { TabAISummary } from "./application360/TabAISummary"
 import { TabConfiguration } from "./application360/TabConfiguration"
+import { TabConnectors } from "./application360/TabConnectors"
 
 const TABS = [
   { value: "overview", label: "Overview" },
@@ -33,6 +34,7 @@ const TABS = [
   { value: "dependencies", label: "Dependencies" },
   { value: "incidents", label: "Incidents" },
   { value: "health-rules", label: "Health Rules" },
+  { value: "connectors", label: "Connectors" },
   { value: "ai-summary", label: "AI Summary" },
   { value: "configuration", label: "Configuration" },
 ]
@@ -161,6 +163,7 @@ export function Application360() {
             <TabsContent value="dependencies"><TabDependencies appId={effectiveSelected} /></TabsContent>
             <TabsContent value="incidents"><TabIncidents appId={effectiveSelected} /></TabsContent>
             <TabsContent value="health-rules"><TabHealthRules appId={effectiveSelected} /></TabsContent>
+            <TabsContent value="connectors"><TabConnectors appId={effectiveSelected} /></TabsContent>
             <TabsContent value="ai-summary"><TabAISummary appId={effectiveSelected} /></TabsContent>
             <TabsContent value="configuration"><TabConfiguration appId={effectiveSelected} /></TabsContent>
           </Tabs>

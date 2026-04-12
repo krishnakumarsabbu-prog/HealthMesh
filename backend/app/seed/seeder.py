@@ -15,7 +15,7 @@ from app.models import (
     Team, TeamMember, Environment, Application, AppHealthScore,
     AppSignal, AppTransaction, AppLogPattern, AppInfraPod,
     AppDependency, AppEndpoint,
-    ConnectorTemplate, ConnectorInstance,
+    ConnectorTemplate, ConnectorInstance, AppConnectorAssignment,
     HealthRule,
     Incident, Alert,
     DependencyNode, DependencyEdge,
@@ -23,6 +23,45 @@ from app.models import (
     MaintenanceWindow, SLASetting, AuditLog, AppSettings,
     Role, Lob, OrgTeam, Project, User,
 )
+
+APP_CONNECTOR_ASSIGNMENTS = [
+    {"app_id": "payments-api", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "payments-api", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "payments-api", "connector_instance_id": "conn-appdynamics-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "payments-api", "connector_instance_id": "conn-splunk-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "customer-auth-service", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "customer-auth-service", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "customer-auth-service", "connector_instance_id": "conn-splunk-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "order-processing-gateway", "connector_instance_id": "conn-appdynamics-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "order-processing-gateway", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "order-processing-gateway", "connector_instance_id": "conn-logicmonitor-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "search-api", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "search-api", "connector_instance_id": "conn-grafana-cloud", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "search-api", "connector_instance_id": "conn-splunk-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "recommendation-engine", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "recommendation-engine", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "fraud-detection-service", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "fraud-detection-service", "connector_instance_id": "conn-appdynamics-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "fraud-detection-service", "connector_instance_id": "conn-splunk-prod", "enabled": True, "poll_interval_seconds": 30, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "claims-portal-api", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "claims-portal-api", "connector_instance_id": "conn-grafana-cloud", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "api-gateway", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 15, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "api-gateway", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 15, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "api-gateway", "connector_instance_id": "conn-logicmonitor-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "reporting-hub", "connector_instance_id": "conn-splunk-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "reporting-hub", "connector_instance_id": "conn-grafana-cloud", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+
+    {"app_id": "notification-engine", "connector_instance_id": "conn-datadog-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+    {"app_id": "notification-engine", "connector_instance_id": "conn-prometheus-prod", "enabled": True, "poll_interval_seconds": 60, "assigned_by": "admin@healthmesh.io"},
+]
 
 
 def is_seeded(db: Session) -> bool:
@@ -38,6 +77,7 @@ def seed_all(db: Session):
     _seed_app_project_mappings(db)
     _seed_app_data(db)
     _seed_connectors(db)
+    _seed_app_connector_assignments(db)
     _seed_health_rules(db)
     _seed_incidents_alerts(db)
     _seed_dependencies(db)
@@ -136,6 +176,12 @@ def _seed_connectors(db: Session):
     db.flush()
     for c in CONNECTOR_INSTANCES:
         db.add(ConnectorInstance(**c))
+    db.flush()
+
+
+def _seed_app_connector_assignments(db: Session):
+    for assignment in APP_CONNECTOR_ASSIGNMENTS:
+        db.add(AppConnectorAssignment(**assignment))
     db.flush()
 
 

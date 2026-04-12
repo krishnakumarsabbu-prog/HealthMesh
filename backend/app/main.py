@@ -11,6 +11,7 @@ from app.api import (
     dependencies, insights, trends, teams, settings as settings_router, admin,
     auth, tenant
 )
+from app.api import app_connectors
 
 import app.connectors.datadog  # noqa: F401
 import app.connectors.prometheus  # noqa: F401
@@ -71,6 +72,7 @@ app.include_router(settings_router.router)
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(tenant.router)
+app.include_router(app_connectors.router)
 
 
 @app.get("/health")

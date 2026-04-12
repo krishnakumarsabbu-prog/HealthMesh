@@ -1,5 +1,7 @@
-from sqlalchemy import String, Integer, Float, Boolean, Text, ForeignKey, JSON
+from sqlalchemy import String, Integer, Float, Boolean, Text, ForeignKey, JSON, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
+from datetime import datetime
 from app.database.session import Base
 from app.models.base import TimestampMixin
 
@@ -38,3 +40,33 @@ class ConnectorInstance(Base, TimestampMixin):
     config: Mapped[str] = mapped_column(JSON, default=dict)
 
     template: Mapped["ConnectorTemplate"] = relationship("ConnectorTemplate", back_populates="instances")
+    app_assignments: Mapped[list["AppConnectorAssignment"]] = relationship("AppConnectorAssignment", back_populates="connector_instance")
+
+
+class AppConnectorAssignment(Base, TimestampMixin):
+    __tablename__ = "app_connector_assignments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    app_id: Mapped[str] = mapped_column(String(64), ForeignKey("applications.id"))
+    connector_instance_id: Mapped[str] = mapped_column(String(64), ForeignKey("connector_instances.id"))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    poll_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    assigned_by: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+
+    connector_instance: Mapped["ConnectorInstance"] = relationship("ConnectorInstance", back_populates="app_assignments")
+
+
+class AppHealthPollResult(Base):
+    __tablename__ = "app_health_poll_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    app_id: Mapped[str] = mapped_column(String(64), ForeignKey("applications.id"))
+    connector_instance_id: Mapped[str] = mapped_column(String(64), ForeignKey("connector_instances.id"))
+    connector_name: Mapped[str] = mapped_column(String(128), default="")
+    connector_category: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(32), default="ok")
+    health_score: Mapped[float] = mapped_column(Float, default=100.0)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw_response: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    polled_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
