@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { CONNECTOR_TEMPLATES } from "./data"
+import { useApi } from "@/hooks/useApi"
+import { listApps, type AppSummary } from "@/lib/api/apps"
 
 interface Props {
   onClose: () => void
@@ -17,8 +19,9 @@ const WIZARD_STEPS = [
   { id: 2, label: "Connection", desc: "Set endpoint details" },
   { id: 3, label: "Capabilities", desc: "Choose what to collect" },
   { id: 4, label: "Metric Templates", desc: "Select metric presets" },
-  { id: 5, label: "Test & Preview", desc: "Validate connection" },
-  { id: 6, label: "Review & Activate", desc: "Confirm and save" },
+  { id: 5, label: "App Scope", desc: "Assign to applications" },
+  { id: 6, label: "Test & Preview", desc: "Validate connection" },
+  { id: 7, label: "Review & Activate", desc: "Confirm and save" },
 ]
 
 const CONNECTOR_AUTH_CONFIG: Record<string, { fields: { key: string; label: string; type: string; placeholder: string; hint?: string }[] }> = {
@@ -94,7 +97,10 @@ export function AddConnectorWizard({ onClose }: Props) {
   const [environment, setEnvironment] = useState("Production")
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>(["metrics", "alerts"])
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["golden-signals", "slo-pack"])
+  const [selectedAppIds, setSelectedAppIds] = useState<Set<string>>(new Set())
   const [testState, setTestState] = useState<"idle" | "testing" | "success" | "error">("idle")
+
+  const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
 
   const template = CONNECTOR_TEMPLATES.find(t => t.id === selectedTemplate)
   const authConfig = selectedTemplate ? (CONNECTOR_AUTH_CONFIG[selectedTemplate] || CONNECTOR_AUTH_CONFIG.custom) : null
@@ -103,6 +109,13 @@ export function AddConnectorWizard({ onClose }: Props) {
     setSelectedCapabilities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const togglePreset = (id: string) =>
     setSelectedPresets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleApp = (id: string) =>
+    setSelectedAppIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   const runTest = () => {
     setTestState("testing")
@@ -346,8 +359,59 @@ export function AddConnectorWizard({ onClose }: Props) {
                   </div>
                 )}
 
-                {/* Step 5: Test & Preview */}
+                {/* Step 5: App Scope */}
                 {step === 5 && (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-base font-bold text-foreground mb-0.5">Assign to Applications</div>
+                      <div className="text-sm text-muted-foreground">Choose which applications this connector should monitor. You can change this later from Application 360.</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{apps.length} apps available</span>
+                      {selectedAppIds.size > 0 && (
+                        <Badge variant="secondary" size="sm">{selectedAppIds.size} selected</Badge>
+                      )}
+                    </div>
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {apps.map(app => {
+                        const isSelected = selectedAppIds.has(app.id)
+                        const scoreColor = app.health_score >= 85 ? "text-emerald-500" : app.health_score >= 65 ? "text-amber-500" : "text-red-500"
+                        return (
+                          <button
+                            key={app.id}
+                            onClick={() => toggleApp(app.id)}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150",
+                              isSelected ? "border-primary bg-primary/8" : "border-border/60 hover:border-border hover:bg-muted/20"
+                            )}
+                          >
+                            <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                              isSelected ? "bg-primary border-primary" : "border-border"
+                            )}>
+                              {isSelected && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-foreground leading-tight">{app.name}</div>
+                              <div className="text-[10px] text-muted-foreground">{app.environment} · {app.app_type}</div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge variant="secondary" size="sm">{app.criticality}</Badge>
+                              <span className={cn("text-xs font-bold font-mono", scoreColor)}>{app.health_score}</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {selectedAppIds.size === 0 && (
+                      <div className="rounded-xl bg-muted/30 border border-border/60 p-3 text-xs text-muted-foreground text-center">
+                        Skip to assign apps later from the Application 360 Connectors tab
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 6: Test & Preview */}
+                {step === 6 && (
                   <div className="space-y-4">
                     <div>
                       <div className="text-base font-bold text-foreground mb-0.5">Test Connection</div>
@@ -416,8 +480,8 @@ export function AddConnectorWizard({ onClose }: Props) {
                   </div>
                 )}
 
-                {/* Step 6: Review & Activate */}
-                {step === 6 && (
+                {/* Step 7: Review & Activate */}
+                {step === 7 && (
                   <div className="space-y-4">
                     <div>
                       <div className="text-base font-bold text-foreground mb-0.5">Review & Activate</div>
@@ -432,6 +496,7 @@ export function AddConnectorWizard({ onClose }: Props) {
                         { label: "Environment", value: environment },
                         { label: "Capabilities", value: `${selectedCapabilities.length} selected` },
                         { label: "Metric Packs", value: `${selectedPresets.length} selected` },
+                        { label: "Apps Assigned", value: selectedAppIds.size > 0 ? `${selectedAppIds.size} apps` : "None (assign later)" },
                         { label: "Connection Test", value: testState === "success" ? "Passed" : "Skipped" },
                       ].map((r, i) => (
                         <div key={i} className="flex items-center justify-between text-sm">

@@ -1,8 +1,11 @@
-import { motion } from "framer-motion"
-import { Settings, Activity, Zap, TriangleAlert as AlertTriangle, CircleX, Plug } from "lucide-react"
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Settings, CircleX, Link } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { useApi } from "@/hooks/useApi"
+import { listApps, assignConnectorToApp, type AppSummary } from "@/lib/api/apps"
 import type { ConnectorInstance } from "./data"
 
 interface Props {
@@ -20,6 +23,22 @@ const STATUS_CONFIG = {
 
 export function ConnectorCard({ connector, onSelect, index }: Props) {
   const status = STATUS_CONFIG[connector.status]
+  const [showAssignPanel, setShowAssignPanel] = useState(false)
+  const [assigning, setAssigning] = useState<string | null>(null)
+  const [assigned, setAssigned] = useState<Set<string>>(new Set())
+
+  const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
+
+  async function handleAssign(e: React.MouseEvent, appId: string) {
+    e.stopPropagation()
+    setAssigning(appId)
+    try {
+      await assignConnectorToApp(appId, { connector_instance_id: connector.id })
+      setAssigned(prev => new Set([...prev, appId]))
+    } finally {
+      setAssigning(null)
+    }
+  }
 
   return (
     <motion.div
@@ -28,7 +47,7 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
       transition={{ delay: 0.05 + index * 0.04 }}
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
       onClick={() => onSelect(connector)}
-      className="premium-card p-4 cursor-pointer group hover:border-primary/30 transition-all duration-200"
+      className="premium-card p-4 cursor-pointer group hover:border-primary/30 transition-all duration-200 relative"
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-sm font-bold font-mono shrink-0", connector.bgColor, connector.iconBg)}>
@@ -78,10 +97,58 @@ export function ConnectorCard({ connector, onSelect, index }: Props) {
             <>Synced {connector.lastSync}</>
           )}
         </div>
-        <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => { e.stopPropagation() }}>
-          <Settings className="w-3.5 h-3.5" />
-        </Button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={e => { e.stopPropagation(); setShowAssignPanel(v => !v) }}
+            title="Assign to App"
+          >
+            <Link className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={e => { e.stopPropagation() }}>
+            <Settings className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {showAssignPanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border border-border bg-card shadow-lg overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-border/60 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Assign to App
+            </div>
+            <div className="max-h-48 overflow-y-auto divide-y divide-border/40">
+              {apps.length === 0 && (
+                <div className="p-3 text-xs text-muted-foreground text-center">No apps available</div>
+              )}
+              {apps.slice(0, 8).map(app => (
+                <div key={app.id} className="flex items-center justify-between px-3 py-2 hover:bg-muted/30">
+                  <div>
+                    <div className="text-xs font-semibold text-foreground">{app.name}</div>
+                    <div className="text-[10px] text-muted-foreground">{app.environment}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={assigned.has(app.id) ? "secondary" : "outline"}
+                    className="text-[10px] h-6 px-2"
+                    disabled={assigning === app.id || assigned.has(app.id)}
+                    onClick={e => handleAssign(e, app.id)}
+                  >
+                    {assigned.has(app.id) ? "Assigned" : assigning === app.id ? "..." : "Assign"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

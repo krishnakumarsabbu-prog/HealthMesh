@@ -463,19 +463,54 @@ export function ExecutiveOverview() {
             </motion.div>
 
             <motion.div {...fadeUp} transition={{ delay: 0.36, duration: 0.35 }} className="premium-card p-5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Source Health</div>
-              <div className="space-y-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Connector Health</div>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    {connectorHealth.filter(c => c.status === "healthy").length} ok
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                    {connectorHealth.filter(c => c.status !== "healthy" && c.status !== "critical").length} warn
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                    {connectorHealth.filter(c => c.status === "critical").length} err
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2.5">
                 {connectorHealth.map(c => (
-                  <div key={c.name} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/30 transition-colors">
-                    <div className={cn("w-2 h-2 rounded-full shrink-0",
-                      c.status === "healthy" ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" :
-                      c.status === "warning" ? "bg-amber-500" : "bg-red-500"
-                    )} />
-                    <span className="text-xs font-semibold text-foreground flex-1">{c.name}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{c.healthPct.toFixed(0)}%</span>
+                  <div key={c.name} className="group">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={cn("w-1.5 h-1.5 rounded-full shrink-0",
+                        c.status === "healthy" ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" :
+                        c.status === "warning" ? "bg-amber-500" : "bg-red-500"
+                      )} />
+                      <span className="text-xs font-semibold text-foreground flex-1 truncate">{c.name}</span>
+                      <span className={cn("text-[10px] font-mono font-semibold",
+                        c.healthPct >= 90 ? "text-emerald-600 dark:text-emerald-400" :
+                        c.healthPct >= 70 ? "text-amber-500" : "text-red-500"
+                      )}>{c.healthPct.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-muted overflow-hidden ml-3.5">
+                      <motion.div
+                        className={cn("h-full rounded-full",
+                          c.healthPct >= 90 ? "bg-emerald-500" :
+                          c.healthPct >= 70 ? "bg-amber-500" : "bg-red-500"
+                        )}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${c.healthPct}%` }}
+                        transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
+              {connectorHealth.length === 0 && (
+                <div className="text-center py-4 text-xs text-muted-foreground">No connectors configured</div>
+              )}
             </motion.div>
           </div>
         </div>
