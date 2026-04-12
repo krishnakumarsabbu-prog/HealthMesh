@@ -75,12 +75,12 @@ export async function listOrgUsers(): Promise<OrgUser[]> {
 }
 
 export async function createOrgUser(
-  payload: Omit<OrgUser, "id" | "created_at" | "lob" | "team" | "project"> & { password?: string }
+  payload: Omit<OrgUser, "id" | "created_at" | "lob" | "team" | "project"> & { password: string }
 ): Promise<OrgUser> {
   const body = {
     name: payload.name,
     email: payload.email,
-    password: payload.password ?? "ChangeMe123!",
+    password: payload.password,
     role_id: payload.role_id,
     lob_id: payload.lob_id ?? null,
     team_id: payload.team_id ?? null,

@@ -5,11 +5,12 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { CONNECTOR_TEMPLATES } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
 import { useAuth } from "@/context/AuthContext"
 import { createConnectorInstance, testConnectorConnection } from "@/lib/api/connectors"
+import { listConnectorTemplates, type ConnectorTemplate } from "@/lib/api/dynamic"
+import { CONNECTOR_TEMPLATES as FALLBACK_TEMPLATES } from "./data"
 
 interface Props {
   onClose: () => void
@@ -111,6 +112,10 @@ export function AddConnectorWizard({ onClose }: Props) {
   const [syncInterval, setSyncInterval] = useState("30s")
 
   const { data: apps = [] } = useApi(listApps) as { data: AppSummary[] }
+  const { data: apiTemplates } = useApi(listConnectorTemplates)
+  const connectorTemplates: ConnectorTemplate[] = (apiTemplates && apiTemplates.length > 0)
+    ? apiTemplates
+    : FALLBACK_TEMPLATES.map(t => ({ id: t.id, name: t.name, category: t.category, abbr: t.abbr, icon_bg: t.iconBg, description: t.description, display_order: 0 }))
 
   async function handleActivate() {
     if (!selectedTemplate || !template) return
@@ -130,7 +135,7 @@ export function AddConnectorWizard({ onClose }: Props) {
         capabilities: selectedCapabilities,
         description: template.description,
         abbr: template.abbr,
-        icon_bg: template.iconBg,
+        icon_bg: template.icon_bg,
         bg_color: "",
       })
       onClose()
@@ -141,7 +146,7 @@ export function AddConnectorWizard({ onClose }: Props) {
     }
   }
 
-  const template = CONNECTOR_TEMPLATES.find(t => t.id === selectedTemplate)
+  const template = connectorTemplates.find(t => t.id === selectedTemplate)
   const authConfig = selectedTemplate ? (CONNECTOR_AUTH_CONFIG[selectedTemplate] || CONNECTOR_AUTH_CONFIG.custom) : null
 
   const toggleCap = (id: string) =>
@@ -241,7 +246,7 @@ export function AddConnectorWizard({ onClose }: Props) {
                       <div className="text-sm text-muted-foreground">Select the platform or service you want to connect to HealthMesh.</div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {CONNECTOR_TEMPLATES.map(t => (
+                      {connectorTemplates.map(t => (
                         <button
                           key={t.id}
                           onClick={() => { setSelectedTemplate(t.id); setConnectorName(t.name) }}
@@ -252,7 +257,7 @@ export function AddConnectorWizard({ onClose }: Props) {
                               : "border-border/60 hover:border-border hover:bg-muted/20"
                           )}
                         >
-                          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold font-mono shrink-0", t.iconBg)}>{t.abbr}</div>
+                          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold font-mono shrink-0", t.icon_bg)}>{t.abbr}</div>
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-foreground leading-tight">{t.name}</div>
                             <div className="text-[10px] text-muted-foreground mt-0.5">{t.description}</div>

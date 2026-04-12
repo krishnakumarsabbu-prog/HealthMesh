@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion"
-import { useState } from "react"
+import React, { useState } from "react"
 import {
   Wand as Wand2, Server, CircleCheck as CheckCircle, ChevronRight, ChevronLeft,
   Zap, LayoutGrid, Sparkles, TriangleAlert as AlertTriangle
@@ -19,36 +19,42 @@ import { HealthScorePreview } from "./onboarding/HealthScorePreview"
 import { createApp } from "@/lib/api/apps"
 import { listTeams } from "@/lib/api/misc"
 import { useApi } from "@/hooks/useApi"
+import {
+  listConnectorInstances, type ConnectorInstanceRow
+} from "@/lib/api/connectors"
+import {
+  listAvailableMetrics, listHealthScoreWeights, listEnvironments,
+  type AvailableMetric, type HealthScoreWeight
+} from "@/lib/api/dynamic"
 
-const ENVIRONMENTS = ["Production", "Staging", "Development"]
 const CRITICALITIES = ["P0 — Mission Critical", "P1 — High", "P2 — Medium", "P3 — Low"]
 const APP_TYPES = ["REST API", "GraphQL API", "gRPC Service", "Frontend App", "Worker / Job", "Database", "Message Queue", "Gateway"]
+
+function toThresholdConfigs(metrics: AvailableMetric[]): ThresholdConfig[] {
+  return DEFAULT_THRESHOLDS.filter(t => metrics.some(m => m.id === t.metricId))
+}
+
+function toWeightConfigs(weights: HealthScoreWeight[]): WeightConfig[] {
+  return weights.map(w => ({ label: w.label, weight: w.weight, color: w.color }))
+}
 
 export function OnboardingStudio() {
   const [step, setStep] = useState(0)
 
-  // App basics
   const [appName, setAppName] = useState("")
   const [environment, setEnvironment] = useState("Production")
   const [appType, setAppType] = useState("REST API")
   const [runtime, setRuntime] = useState("")
 
-  // Ownership
   const [team, setTeam] = useState("")
   const [owner, setOwner] = useState("")
   const [criticality, setCriticality] = useState("P1 — High")
   const [description, setDescription] = useState("")
 
-  // Connectors
-  const [selectedConnectors, setSelectedConnectors] = useState<string[]>(["dd-prod"])
-
-  // Metrics
+  const [selectedConnectors, setSelectedConnectors] = useState<string[]>([])
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["latency_p99", "error_rate", "availability", "incidents_open", "slo_budget"])
 
-  // Thresholds
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(DEFAULT_THRESHOLDS)
-
-  // Weights
   const [weights, setWeights] = useState<WeightConfig[]>(DEFAULT_WEIGHTS)
 
   const [activationDone, setActivationDone] = useState(false)
@@ -56,6 +62,49 @@ export function OnboardingStudio() {
 
   const { data: teamsData } = useApi(listTeams, [])
   const teamSuggestions = teamsData?.map(t => t.name) ?? []
+
+  const { data: apiConnectors } = useApi(listConnectorInstances)
+  const { data: apiMetrics } = useApi(listAvailableMetrics)
+  const { data: apiWeights } = useApi(listHealthScoreWeights)
+  const { data: apiEnvironments } = useApi(listEnvironments)
+
+  const availableConnectors = apiConnectors && apiConnectors.length > 0
+    ? apiConnectors.filter(c => c.status === "active").map((c: ConnectorInstanceRow) => ({
+        id: c.id,
+        name: c.name,
+        category: c.category,
+        abbr: c.abbr || c.name.slice(0, 2).toUpperCase(),
+        iconBg: c.icon_bg || "bg-muted text-muted-foreground",
+        status: (c.status as "active" | "warning" | "error" | "inactive"),
+      }))
+    : AVAILABLE_CONNECTORS
+
+  const availableMetrics: AvailableMetric[] = (apiMetrics && apiMetrics.length > 0)
+    ? apiMetrics
+    : AVAILABLE_METRICS.map(m => ({ id: m.id, label: m.label, connector_name: m.connector, metric_type: m.type, recommended: m.recommended, display_order: 0 }))
+
+  const ENVIRONMENTS = apiEnvironments && apiEnvironments.length > 0
+    ? apiEnvironments.map(e => e.name)
+    : ["Production", "Staging", "Development"]
+
+  React.useEffect(() => {
+    if (apiWeights && apiWeights.length > 0) {
+      setWeights(toWeightConfigs(apiWeights))
+    }
+  }, [apiWeights])
+
+  React.useEffect(() => {
+    if (apiMetrics && apiMetrics.length > 0) {
+      setThresholds(toThresholdConfigs(apiMetrics))
+    }
+  }, [apiMetrics])
+
+  React.useEffect(() => {
+    if (apiConnectors && apiConnectors.length > 0) {
+      const firstActive = apiConnectors.find(c => c.status === "active")
+      if (firstActive) setSelectedConnectors([firstActive.id])
+    }
+  }, [apiConnectors])
 
   const handleActivate = async () => {
     setActivating(true)
@@ -121,7 +170,7 @@ export function OnboardingStudio() {
               {app.status === "complete"
                 ? <div className="flex flex-col items-end gap-0.5">
                     <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    {app.score && <span className="text-[10px] font-mono font-bold text-emerald-500">{app.score}</span>}
+                    {app.score != null && <span className="text-[10px] font-mono font-bold text-emerald-500">{app.score}</span>}
                   </div>
                 : <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
               }
@@ -268,7 +317,7 @@ export function OnboardingStudio() {
                         <div className="text-sm text-muted-foreground">Choose which connectors will provide signals for this application.</div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {AVAILABLE_CONNECTORS.map(conn => (
+                        {availableConnectors.map(conn => (
                           <button key={conn.id} onClick={() => toggleConnector(conn.id)}
                             className={cn("flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all",
                               selectedConnectors.includes(conn.id)
@@ -312,7 +361,7 @@ export function OnboardingStudio() {
                         <div className="text-sm text-muted-foreground">Choose which metrics will drive the health score for this application.</div>
                       </div>
                       <div className="space-y-2">
-                        {AVAILABLE_METRICS.map(m => (
+                        {availableMetrics.map(m => (
                           <button key={m.id} onClick={() => toggleMetric(m.id)}
                             className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all",
                               selectedMetrics.includes(m.id)
@@ -326,9 +375,9 @@ export function OnboardingStudio() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-semibold text-foreground">{m.label}</span>
-                              <span className="text-[10px] text-muted-foreground ml-2 font-mono">{m.connector}</span>
+                              <span className="text-[10px] text-muted-foreground ml-2 font-mono">{m.connector_name}</span>
                             </div>
-                            <Badge variant="secondary" size="sm">{m.type}</Badge>
+                            <Badge variant="secondary" size="sm">{m.metric_type}</Badge>
                             {m.recommended && <Badge variant="healthy" size="sm">Recommended</Badge>}
                           </button>
                         ))}

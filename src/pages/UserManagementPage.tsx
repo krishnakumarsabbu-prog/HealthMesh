@@ -59,7 +59,7 @@ interface AddUserDialogProps {
 
 function AddUserDialog({ lobs, teams, projects, onClose, onSave }: AddUserDialogProps) {
   const [form, setForm] = useState({
-    name: "", email: "", role_id: "USER",
+    name: "", email: "", password: "", role_id: "USER",
     lob_id: "", team_id: "", project_id: "", status: "active",
   })
   const [saving, setSaving] = useState(false)
@@ -71,12 +71,14 @@ function AddUserDialog({ lobs, teams, projects, onClose, onSave }: AddUserDialog
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim()) { setError("Name and email are required."); return }
+    if (!form.password.trim() || form.password.length < 8) { setError("Password must be at least 8 characters."); return }
     setSaving(true)
     setError("")
     try {
       const created = await createOrgUser({
         name: form.name.trim(),
         email: form.email.trim(),
+        password: form.password,
         role_id: form.role_id,
         lob_id: form.lob_id || null,
         team_id: form.team_id || null,
@@ -132,6 +134,10 @@ function AddUserDialog({ lobs, teams, projects, onClose, onSave }: AddUserDialog
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Email *</label>
               <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="jane@acme.io" className="h-8 text-sm" />
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Password * (min 8 chars)</label>
+            <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" className="h-8 text-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

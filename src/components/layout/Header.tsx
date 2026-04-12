@@ -1,10 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap, Building2, Layers, FolderOpen } from "lucide-react"
+import { Search, Bell, ChevronRight, Command, Sun, Moon, User, Settings, LogOut, ChevronDown, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, TriangleAlert as AlertTriangle, Zap, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
-import { useApp, ENVIRONMENTS } from "@/context/AppContext"
+import { useApp } from "@/context/AppContext"
 import { useAuth } from "@/context/AuthContext"
 import { getRoleLabel, getRoleBadgeColor } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { listNotifications, markNotificationRead, type Notification } from "@/lib/api/dynamic"
 
 const PAGE_META: Record<string, { label: string; parent?: string }> = {
   "/": { label: "Executive Overview" },
@@ -29,20 +30,39 @@ const PAGE_META: Record<string, { label: string; parent?: string }> = {
   "/settings": { label: "Settings & Admin", parent: "Platform" },
 }
 
-const MOCK_NOTIFICATIONS = [
-  { id: 1, type: "critical", title: "payments-api latency spike", desc: "P99 > 2000ms for 5 minutes", time: "2m ago" },
-  { id: 2, type: "warning", title: "auth-service memory warning", desc: "Memory at 87% capacity", time: "8m ago" },
-  { id: 3, type: "healthy", title: "database-primary recovered", desc: "Incident resolved automatically", time: "15m ago" },
-  { id: 4, type: "info", title: "Scheduled maintenance", desc: "Tonight 2–4am UTC", time: "1h ago" },
-]
+function getRelativeTime(dateStr: string): string {
+  const now = Date.now()
+  const then = new Date(dateStr).getTime()
+  const diffMs = now - then
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return "Just now"
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHrs = Math.floor(diffMins / 60)
+  if (diffHrs < 24) return `${diffHrs}h ago`
+  return `${Math.floor(diffHrs / 24)}d ago`
+}
+
+function getEnvColorClass(envName: string, envColorClass?: string): string {
+  if (envColorClass) return envColorClass
+  if (envName === "Production") return "bg-emerald-500"
+  if (envName === "Staging") return "bg-amber-500"
+  return "bg-blue-500"
+}
 
 export function Header() {
   const { theme, toggleTheme } = useTheme()
-  const { currentEnvironment, setCurrentEnvironment, setCommandPaletteOpen, notificationsOpen, setNotificationsOpen } = useApp()
+  const { currentEnvironment, setCurrentEnvironment, setCommandPaletteOpen, notificationsOpen, setNotificationsOpen, environments } = useApp()
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [searchFocused, setSearchFocused] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+
+  useEffect(() => {
+    listNotifications()
+      .then(setNotifications)
+      .catch(() => setNotifications([]))
+  }, [])
 
   const pageMeta = PAGE_META[location.pathname] || { label: "Dashboard" }
 
@@ -51,10 +71,15 @@ export function Header() {
     navigate("/login", { replace: true })
   }
 
+  const handleMarkRead = async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+    await markNotificationRead(id).catch(() => null)
+  }
+
   const userInitials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
     : "U"
-  const unreadCount = MOCK_NOTIFICATIONS.filter(n => n.type !== "healthy").length
+  const unreadCount = notifications.filter(n => !n.is_read && n.type !== "healthy").length
 
   const notifIcon = (type: string) => {
     switch (type) {
@@ -65,9 +90,10 @@ export function Header() {
     }
   }
 
+  const currentEnvData = environments.find(e => e.name === currentEnvironment)
+
   return (
     <header className="h-16 border-b border-border/60 bg-background/80 backdrop-blur-xl flex items-center gap-4 px-6 sticky top-0 z-30">
-      {/* Breadcrumbs */}
       <div className="flex items-center gap-1.5 text-sm min-w-0">
         {pageMeta.parent && (
           <>
@@ -106,7 +132,6 @@ export function Header() {
 
       <div className="flex-1" />
 
-      {/* Search bar */}
       <div className="relative hidden md:block">
         <motion.div
           animate={{ width: searchFocused ? 280 : 220 }}
@@ -134,16 +159,10 @@ export function Header() {
         </motion.div>
       </div>
 
-      {/* Environment selector */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs font-medium hidden sm:flex">
-            <div className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              currentEnvironment === "Production" ? "bg-emerald-500" :
-              currentEnvironment === "Staging" ? "bg-amber-500" :
-              "bg-blue-500"
-            )} />
+            <div className={cn("w-1.5 h-1.5 rounded-full", getEnvColorClass(currentEnvironment, currentEnvData?.color_class))} />
             {currentEnvironment}
             <ChevronDown className="w-3 h-3 opacity-60" />
           </Button>
@@ -151,22 +170,16 @@ export function Header() {
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuLabel>Environment</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {ENVIRONMENTS.map(env => (
-            <DropdownMenuItem key={env} onClick={() => setCurrentEnvironment(env)} className="gap-2">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                env === "Production" ? "bg-emerald-500" :
-                env === "Staging" ? "bg-amber-500" :
-                "bg-blue-500"
-              )} />
-              {env}
-              {env === currentEnvironment && <CheckCircle2 className="w-3.5 h-3.5 text-primary ml-auto" />}
+          {environments.map(env => (
+            <DropdownMenuItem key={env.id} onClick={() => setCurrentEnvironment(env.name)} className="gap-2">
+              <div className={cn("w-1.5 h-1.5 rounded-full", getEnvColorClass(env.name, env.color_class))} />
+              {env.name}
+              {env.name === currentEnvironment && <CheckCircle2 className="w-3.5 h-3.5 text-primary ml-auto" />}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Command palette shortcut */}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -177,7 +190,6 @@ export function Header() {
         <Command className="w-4 h-4" />
       </Button>
 
-      {/* Theme toggle */}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -198,7 +210,6 @@ export function Header() {
         </AnimatePresence>
       </Button>
 
-      {/* Notifications */}
       <div className="relative">
         <Button
           variant="ghost"
@@ -230,14 +241,23 @@ export function Header() {
                   <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">{unreadCount} new</span>
                 </div>
                 <div className="divide-y divide-border/40 max-h-72 overflow-y-auto">
-                  {MOCK_NOTIFICATIONS.map(n => (
-                    <div key={n.id} className="flex gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer transition-colors">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</div>
+                  ) : notifications.map(n => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleMarkRead(n.id)}
+                      className={cn(
+                        "flex gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer transition-colors",
+                        !n.is_read && "bg-muted/20"
+                      )}
+                    >
                       <div className="mt-0.5">{notifIcon(n.type)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">{n.title}</div>
-                        <div className="text-xs text-muted-foreground truncate">{n.desc}</div>
+                        <div className="text-xs text-muted-foreground truncate">{n.description}</div>
                       </div>
-                      <span className="text-[10px] text-muted-foreground/70 shrink-0 mt-0.5">{n.time}</span>
+                      <span className="text-[10px] text-muted-foreground/70 shrink-0 mt-0.5">{getRelativeTime(n.created_at)}</span>
                     </div>
                   ))}
                 </div>
@@ -250,7 +270,6 @@ export function Header() {
         </AnimatePresence>
       </div>
 
-      {/* Profile menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-xl p-1 pl-2 hover:bg-accent/8 transition-all duration-150 group">
