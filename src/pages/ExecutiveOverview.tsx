@@ -16,6 +16,7 @@ import { mapDashboardOverview } from "@/lib/mappers"
 import { LoadingShimmer } from "@/components/shared/LoadingShimmer"
 import { useHealthSocket } from "@/hooks/useHealthSocket"
 import { useAuth } from "@/context/AuthContext"
+import { LOBHealthPanel } from "@/components/shared/LOBHealthPanel"
 
 const FALLBACK_INCIDENT_TREND = Array.from({ length: 14 }, (_, i) => ({
   d: `D${i + 1}`,
@@ -579,6 +580,9 @@ export function ExecutiveOverview() {
             </motion.div>
           </div>
         </div>
+
+        {/* ── LOB Health Panel ── */}
+        <LOBHealthPanel />
 
         {/* ── Bottom Row: Incident trend + AI highlights + Heatmap ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

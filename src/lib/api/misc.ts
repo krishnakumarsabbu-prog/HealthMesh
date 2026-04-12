@@ -166,6 +166,8 @@ export interface AuditLog {
   details: string;
   ip_address: string;
   timestamp: string;
+  lob_id?: string | null;
+  team_id?: string | null;
 }
 
 export interface SystemStatusService {
