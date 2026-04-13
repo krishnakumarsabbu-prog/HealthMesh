@@ -5,7 +5,7 @@ import {
   TriangleAlert as AlertTriangle, GitBranch, Sparkles,
   ShieldCheck, Wand as Wand2, TrendingUp, Users, Settings,
   ChevronLeft, ChevronRight, Activity, Wrench, Target, FileText, Shield,
-  Building2, UserCog, FolderOpen,
+  Building2, UserCog, FolderOpen, LayoutList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
@@ -35,6 +35,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: "Operations",
     items: [
+      { icon: LayoutList, label: "Operations Tab", path: "/operations", description: "Unified real-time operations view" },
       { icon: Plug2, label: "Connector Hub", path: "/connectors", description: "Data source integrations" },
       { icon: AlertTriangle, label: "Incidents & Alerts", path: "/incidents", description: "Active issues & history" },
       { icon: GitBranch, label: "Dependency Map", path: "/dependencies", description: "Service topology & flows" },

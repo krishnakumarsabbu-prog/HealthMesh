@@ -28,6 +28,7 @@ const UserManagementPage = lazy(() => import("@/pages/UserManagementPage").then(
 const OrganizationPage = lazy(() => import("@/pages/OrganizationPage").then(m => ({ default: m.OrganizationPage })))
 const SystemStatusPage = lazy(() => import("@/pages/SystemStatusPage").then(m => ({ default: m.SystemStatusPage })))
 const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })))
+const OperationsTab = lazy(() => import("@/pages/OperationsTab").then(m => ({ default: m.OperationsTab })))
 
 function PageFallback() {
   return (
@@ -63,6 +64,9 @@ export default function App() {
                   } />
                   <Route path="/incidents" element={
                     <Suspense fallback={<PageFallback />}><IncidentsAlerts /></Suspense>
+                  } />
+                  <Route path="/operations" element={
+                    <Suspense fallback={<PageFallback />}><OperationsTab /></Suspense>
                   } />
                   <Route path="/dependencies" element={
                     <Suspense fallback={<PageFallback />}><DependencyMap /></Suspense>
