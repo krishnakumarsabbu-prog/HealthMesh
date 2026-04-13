@@ -1,10 +1,10 @@
 import { motion } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
 import { cn } from "@/lib/utils"
-import { INFRA_PODS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppInfra } from "@/lib/api/apps"
 import { mapAppInfraPod } from "@/lib/mappers"
+import { Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -24,19 +24,40 @@ const CPU_DATA = Array.from({ length: 30 }, (_, i) => ({
 type PodEntry = { name: string; node: string; cpu: number; mem: number; restarts: number; status: "running" | "warning"; age: string }
 
 export function TabInfra({ appId }: { appId: string }) {
-  const { data: apiPods } = useApi(() => getAppInfra(appId), [appId])
+  const { data: apiPods, loading, error } = useApi(() => getAppInfra(appId), [appId])
 
-  const pods: PodEntry[] = apiPods && apiPods.length > 0
+  const pods: PodEntry[] = apiPods
     ? apiPods.map(p => {
         const m = mapAppInfraPod(p)
         return { name: m.podName, node: m.node, cpu: m.cpuPct, mem: m.memPct, restarts: m.restarts, status: (m.status === "running" ? "running" : "warning") as "running" | "warning", age: m.age }
       })
-    : INFRA_PODS
+    : []
 
-  const avgCpu = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.cpu, 0) / pods.length) : 62
-  const avgMem = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.mem, 0) / pods.length) : 71
+  const avgCpu = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.cpu, 0) / pods.length) : 0
+  const avgMem = pods.length > 0 ? Math.round(pods.reduce((a, p) => a + p.mem, 0) / pods.length) : 0
   const totalRestarts = pods.reduce((a, p) => a + p.restarts, 0)
   const runningPods = pods.filter(p => p.status === "running").length
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading infrastructure...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load infrastructure</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   const infraMetrics = [
     { label: "Avg CPU", value: `${avgCpu}%`, warn: avgCpu > 75 },

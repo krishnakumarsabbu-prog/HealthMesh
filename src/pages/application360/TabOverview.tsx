@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
-import { ShieldCheck, Zap, Activity, TriangleAlert as AlertTriangle, TrendingUp, TrendingDown, RefreshCw, CircleCheck as CheckCircle, Circle as XCircle, Radio } from "lucide-react"
+import { ShieldCheck, Zap, Activity, TriangleAlert as AlertTriangle, TrendingUp, TrendingDown, RefreshCw, CircleCheck as CheckCircle, Circle as XCircle, Radio, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { HEALTH_SCORE_7D, HEALTH_RULES } from "./data"
+import { HEALTH_SCORE_7D } from "./data"
 import { useApi } from "@/hooks/useApi"
-import { getAppOverview, runHealthCheck, type AppHealthCheckResult } from "@/lib/api/apps"
-import { mapAppOverview } from "@/lib/mappers"
+import { getAppOverview, getAppRules, runHealthCheck, type AppHealthCheckResult } from "@/lib/api/apps"
+import { mapAppOverview, mapAppHealthRule } from "@/lib/mappers"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useHealthSocket } from "@/hooks/useHealthSocket"
@@ -55,8 +55,9 @@ export function TabOverview({ appId }: { appId: string }) {
   const [liveFlash, setLiveFlash] = useState(false)
 
   const { token } = useAuth()
-  const { data: rawOverview } = useApi(() => getAppOverview(appId), [appId])
+  const { data: rawOverview, loading: overviewLoading, error: overviewError } = useApi(() => getAppOverview(appId), [appId])
   const overview = rawOverview ? mapAppOverview(rawOverview) : null
+  const { data: apiRules, loading: rulesLoading } = useApi(() => getAppRules(appId), [appId])
 
   const { connected, appHealthMap } = useHealthSocket({ token })
 
@@ -83,8 +84,8 @@ export function TabOverview({ appId }: { appId: string }) {
   }
 
   const app = overview?.app
-  const healthScore = liveHealthScore ?? app?.healthScore ?? 94
-  const healthHistory = overview?.healthHistory ?? HEALTH_SCORE_7D
+  const healthScore = liveHealthScore ?? app?.healthScore ?? 0
+  const healthHistory = overview?.healthHistory && overview.healthHistory.length > 0 ? overview.healthHistory : HEALTH_SCORE_7D
   const latency24h = overview?.latency24h ?? []
   const errorRate24h = overview?.errorRate24h ?? []
 
@@ -92,21 +93,59 @@ export function TabOverview({ appId }: { appId: string }) {
     ? (errorRate24h.reduce((s, d) => s + d.rate, 0) / errorRate24h.length)
     : null
 
-  const displayLatency = liveLatency ?? app?.latencyP99 ?? 42
-  const displayUptime = liveUptime ?? app?.uptime ?? 99.98
-  const displayRpm = liveRpm ?? app?.rpm ?? 12400
+  const displayLatency = liveLatency ?? app?.latencyP99 ?? 0
+  const displayUptime = liveUptime ?? app?.uptime ?? 0
+  const displayRpm = liveRpm ?? app?.rpm ?? 0
+
+  const healthRules = apiRules && apiRules.length > 0
+    ? apiRules.map(r => {
+        const m = mapAppHealthRule(r)
+        return {
+          name: m.name,
+          condition: m.condition,
+          weight: m.weight || 20,
+          current: m.lastTriggered !== "never" ? `last: ${m.lastTriggered}` : m.enabled ? "passing" : "disabled",
+          status: (m.enabled ? (m.triggerCount > 0 ? "warn" : "pass") : "warn") as "pass" | "warn" | "fail",
+        }
+      })
+    : null
 
   const keyMetrics = [
-    { label: "Uptime (30d)", value: `${displayUptime.toFixed(2)}%`, icon: <ShieldCheck className="w-4 h-4" />, color: "text-emerald-500", trend: +0.01, live: liveUptime !== null },
-    { label: "P99 Latency", value: `${Math.round(displayLatency)}ms`, icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8, live: liveLatency !== null },
-    { label: "Error Rate", value: avgErrorRate !== null ? `${(avgErrorRate * 100).toFixed(2)}%` : "0.04%", icon: <AlertTriangle className="w-4 h-4" />, color: avgErrorRate !== null && avgErrorRate * 100 > 1 ? "text-red-500" : "text-emerald-500", trend: -0.02, live: false },
-    { label: "Throughput", value: `${(displayRpm / 1000).toFixed(1)}K rpm`, icon: <Activity className="w-4 h-4" />, color: "text-blue-500", trend: +11, live: liveRpm !== null },
+    { label: "Uptime (30d)", value: displayUptime > 0 ? `${displayUptime.toFixed(2)}%` : "—", icon: <ShieldCheck className="w-4 h-4" />, color: "text-emerald-500", trend: +0.01, live: liveUptime !== null },
+    { label: "P99 Latency", value: displayLatency > 0 ? `${Math.round(displayLatency)}ms` : "—", icon: <Zap className="w-4 h-4" />, color: "text-emerald-500", trend: -8, live: liveLatency !== null },
+    { label: "Error Rate", value: avgErrorRate !== null ? `${(avgErrorRate * 100).toFixed(2)}%` : "—", icon: <AlertTriangle className="w-4 h-4" />, color: avgErrorRate !== null && avgErrorRate * 100 > 1 ? "text-red-500" : "text-emerald-500", trend: -0.02, live: false },
+    { label: "Throughput", value: displayRpm > 0 ? `${(displayRpm / 1000).toFixed(1)}K rpm` : "—", icon: <Activity className="w-4 h-4" />, color: "text-blue-500", trend: +11, live: liveRpm !== null },
   ]
 
-  const latencyScore = Math.min(100, Math.round(100 - (displayLatency / 500) * 100))
-  const errorScore = avgErrorRate !== null ? Math.max(0, Math.round(100 - avgErrorRate * 100 * 10)) : 99
-  const infraScore = 88
-  const availabilityScore = Math.round(displayUptime)
+  const latencyScore = displayLatency > 0 ? Math.min(100, Math.round(100 - (displayLatency / 500) * 100)) : 0
+  const errorScore = avgErrorRate !== null ? Math.max(0, Math.round(100 - avgErrorRate * 100 * 10)) : 0
+  const availabilityScore = displayUptime > 0 ? Math.round(displayUptime) : 0
+  const infraScore = healthRules
+    ? Math.round(
+        (healthRules.filter(r => r.status === "pass").length / Math.max(healthRules.length, 1)) * 100
+      )
+    : 0
+
+  if (overviewLoading && !overview) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading overview...</span>
+      </div>
+    )
+  }
+
+  if (overviewError && !overview) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load overview</p>
+          <p className="text-xs text-muted-foreground mt-1">{overviewError}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -298,25 +337,37 @@ export function TabOverview({ appId }: { appId: string }) {
         <div className="px-5 py-3 border-b border-border/60">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Health Rules — Summary</div>
         </div>
-        <div className="divide-y divide-border/40">
-          {HEALTH_RULES.map((r, i) => (
-            <div key={i} className="flex items-center gap-4 px-5 py-3">
-              <div className={cn("w-2 h-2 rounded-full shrink-0",
-                r.status === "pass" ? "bg-emerald-500" : r.status === "warn" ? "bg-amber-500" : "bg-red-500"
-              )} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-foreground">{r.name}</div>
-                <div className="text-xs font-mono text-muted-foreground">{r.condition}</div>
+        {rulesLoading ? (
+          <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-xs">Loading rules...</span>
+          </div>
+        ) : healthRules && healthRules.length > 0 ? (
+          <div className="divide-y divide-border/40">
+            {healthRules.map((r, i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3">
+                <div className={cn("w-2 h-2 rounded-full shrink-0",
+                  r.status === "pass" ? "bg-emerald-500" : r.status === "warn" ? "bg-amber-500" : "bg-red-500"
+                )} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-foreground">{r.name}</div>
+                  <div className="text-xs font-mono text-muted-foreground">{r.condition}</div>
+                </div>
+                <div className="text-xs font-mono font-semibold text-foreground">{r.current}</div>
+                <div className="w-16 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full", r.status === "pass" ? "bg-emerald-500" : "bg-amber-500")}
+                    style={{ width: `${Math.min(r.weight * 3.3, 100)}%` }} />
+                </div>
+                <div className="text-[10px] text-muted-foreground w-12 text-right">w:{r.weight}%</div>
               </div>
-              <div className="text-xs font-mono font-semibold text-foreground">{r.current}</div>
-              <div className="w-16 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-                <div className={cn("h-full rounded-full", r.status === "pass" ? "bg-emerald-500" : "bg-amber-500")}
-                  style={{ width: `${r.weight * 3.3}%` }} />
-              </div>
-              <div className="text-[10px] text-muted-foreground w-12 text-right">w:{r.weight}%</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-xs">No health rules configured for this application.</span>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Plug, Plus, Trash2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Circle as XCircle, RefreshCw, Activity, Database, Server, Shield, Layers, Eye } from "lucide-react"
+import { Plug, Plus, Trash2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Circle as XCircle, RefreshCw, Activity, Database, Server, Shield, Layers, Eye, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/hooks/useApi"
 import {
@@ -71,8 +71,10 @@ export function TabConnectors({ appId }: { appId: string }) {
   const [healthResult, setHealthResult] = useState<AppHealthCheckResult | null>(null)
   const [runningCheck, setRunningCheck] = useState(false)
 
-  const { data: assignments = [], refetch: refreshAssignments } = useApi(() => getAppConnectors(appId), [appId]) as {
+  const { data: assignments = [], loading: connectorsLoading, error: connectorsError, refetch: refreshAssignments } = useApi(() => getAppConnectors(appId), [appId]) as {
     data: AppConnectorAssignment[]
+    loading: boolean
+    error: string | null
     refetch: () => void
   }
 
@@ -120,6 +122,27 @@ export function TabConnectors({ appId }: { appId: string }) {
   }
 
   const resultByConnector = new Map(latestResults.map(r => [r.connector_instance_id, r]))
+
+  if (connectorsLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading connectors...</span>
+      </div>
+    )
+  }
+
+  if (connectorsError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load connectors</p>
+          <p className="text-xs text-muted-foreground mt-1">{connectorsError}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">

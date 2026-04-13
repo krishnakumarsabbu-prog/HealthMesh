@@ -1,22 +1,36 @@
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Settings, RefreshCw, CreditCard as Edit } from "lucide-react"
+import { Settings, RefreshCw, CreditCard as Edit, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { getAppConfiguration } from "@/lib/api/apps"
 import { mapAppConfiguration } from "@/lib/mappers"
 import { cn } from "@/lib/utils"
 
-const FALLBACK_CONNECTORS = [
-  { id: "1", name: "Datadog APM", category: "APM", status: "healthy" as const, abbr: "DD", iconBg: "bg-violet-500/10 text-violet-500" },
-  { id: "2", name: "Prometheus", category: "Metrics", status: "healthy" as const, abbr: "PR", iconBg: "bg-orange-500/10 text-orange-500" },
-  { id: "3", name: "CloudWatch", category: "Infra", status: "healthy" as const, abbr: "CW", iconBg: "bg-amber-500/10 text-amber-500" },
-  { id: "4", name: "PagerDuty", category: "Incidents", status: "healthy" as const, abbr: "PD", iconBg: "bg-emerald-500/10 text-emerald-500" },
-]
-
 export function TabConfiguration({ appId }: { appId: string }) {
-  const { data: rawConfig } = useApi(() => getAppConfiguration(appId), [appId])
+  const { data: rawConfig, loading, error } = useApi(() => getAppConfiguration(appId), [appId])
   const config = rawConfig ? mapAppConfiguration(rawConfig) : null
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading configuration...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load configuration</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   const metadata = [
     { label: "Name", value: config?.name ?? appId },
@@ -29,9 +43,7 @@ export function TabConfiguration({ appId }: { appId: string }) {
     { label: "Criticality", value: config?.criticality ?? "—" },
   ]
 
-  const connectors = config?.connectors && config.connectors.length > 0
-    ? config.connectors
-    : FALLBACK_CONNECTORS
+  const connectors = config?.connectors ?? []
 
   const weights = config?.healthWeights ?? {
     latency: 30,
@@ -82,6 +94,12 @@ export function TabConfiguration({ appId }: { appId: string }) {
               <RefreshCw className="w-3.5 h-3.5" />
             </Button>
           </div>
+          {connectors.length === 0 ? (
+            <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground px-5">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs">No connectors linked to this application.</span>
+            </div>
+          ) : null}
           <div className="divide-y divide-border/40">
             {connectors.map((c, i) => (
               <div key={i} className="flex items-center gap-3 px-5 py-3">

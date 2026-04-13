@@ -1,10 +1,11 @@
 import { motion } from "framer-motion"
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
 import { cn } from "@/lib/utils"
-import { TRANSACTIONS, LATENCY_24H, THROUGHPUT_24H } from "./data"
+import { LATENCY_24H, THROUGHPUT_24H } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppTransactions, getAppOverview } from "@/lib/api/apps"
 import { mapAppOverview, mapAppTransaction } from "@/lib/mappers"
+import { Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 
 const CHART_STYLE = {
   contentStyle: {
@@ -25,11 +26,11 @@ const METHOD_COLOR: Record<string, string> = {
 type TxEntry = { name: string; rpm: number; p99: number; errors: number; apdex: number; status: "healthy" | "warning" | "critical" }
 
 export function TabTransactions({ appId }: { appId: string }) {
-  const { data: apiTransactions } = useApi(() => getAppTransactions(appId), [appId])
+  const { data: apiTransactions, loading: txLoading, error: txError } = useApi(() => getAppTransactions(appId), [appId])
   const { data: rawOverview } = useApi(() => getAppOverview(appId), [appId])
   const overview = rawOverview ? mapAppOverview(rawOverview) : null
 
-  const transactions: TxEntry[] = apiTransactions && apiTransactions.length > 0
+  const transactions: TxEntry[] = apiTransactions
     ? apiTransactions.map(t => {
         const m = mapAppTransaction(t)
         return {
@@ -41,7 +42,7 @@ export function TabTransactions({ appId }: { appId: string }) {
           status: (m.status === "healthy" ? "healthy" : m.status === "warning" ? "warning" : "critical") as TxEntry["status"],
         }
       })
-    : TRANSACTIONS
+    : []
 
   const latencyData = overview?.latency24h && overview.latency24h.length > 0
     ? overview.latency24h.map(d => ({ time: d.t, p50: d.p50, p95: d.p95, p99: d.p99 }))
@@ -50,6 +51,27 @@ export function TabTransactions({ appId }: { appId: string }) {
   const throughputData = overview?.throughput24h && overview.throughput24h.length > 0
     ? overview.throughput24h.map(d => ({ time: d.t, rpm: d.rpm }))
     : THROUGHPUT_24H
+
+  if (txLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading transactions...</span>
+      </div>
+    )
+  }
+
+  if (txError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load transactions</p>
+          <p className="text-xs text-muted-foreground mt-1">{txError}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

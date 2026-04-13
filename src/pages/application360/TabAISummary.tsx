@@ -1,7 +1,6 @@
 import { motion } from "framer-motion"
-import { Sparkles, TriangleAlert as AlertTriangle, TrendingUp, Info, CircleCheck as CheckCircle } from "lucide-react"
+import { Sparkles, TriangleAlert as AlertTriangle, TrendingUp, Info, CircleCheck as CheckCircle, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { AI_FINDINGS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppAiSummary, type AppAiInsight } from "@/lib/api/apps"
 import { mapAppAiInsight } from "@/lib/mappers"
@@ -71,14 +70,33 @@ function apiInsightToFinding(i: AppAiInsight): FindingEntry {
 }
 
 export function TabAISummary({ appId }: { appId: string }) {
-  const { data: apiInsights } = useApi(() => getAppAiSummary(appId), [appId])
+  const { data: apiInsights, loading, error } = useApi(() => getAppAiSummary(appId), [appId])
 
-  const findings: FindingEntry[] = apiInsights && apiInsights.length > 0
-    ? apiInsights.map(apiInsightToFinding)
-    : AI_FINDINGS
+  const findings: FindingEntry[] = apiInsights ? apiInsights.map(apiInsightToFinding) : []
 
   const summaryInsight = apiInsights?.find(i => i.insight_type === "summary") ?? apiInsights?.[0]
   const summaryText = summaryInsight?.description ?? null
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading AI insights...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load AI insights</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

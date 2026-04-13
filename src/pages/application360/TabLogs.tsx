@@ -1,8 +1,7 @@
 import { motion } from "framer-motion"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
-import { TrendingUp, TrendingDown, Minus, Search } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Search, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { LOG_PATTERNS } from "./data"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { useApi } from "@/hooks/useApi"
@@ -33,14 +32,14 @@ type LogEntry = { level: string; pattern: string; count: number; first: string; 
 
 export function TabLogs({ appId }: { appId: string }) {
   const [search, setSearch] = useState("")
-  const { data: apiLogs } = useApi(() => getAppLogs(appId), [appId])
+  const { data: apiLogs, loading, error } = useApi(() => getAppLogs(appId), [appId])
 
-  const logPatterns: LogEntry[] = apiLogs && apiLogs.length > 0
+  const logPatterns: LogEntry[] = apiLogs
     ? apiLogs.map(l => {
         const m = mapAppLogPattern(l)
         return { level: m.level, pattern: m.pattern, count: m.count, first: m.firstSeen || "—", last: m.lastSeen || "—", trend: m.trend }
       })
-    : LOG_PATTERNS
+    : []
 
   const filtered = logPatterns.filter(l =>
     l.pattern.toLowerCase().includes(search.toLowerCase())
@@ -48,6 +47,27 @@ export function TabLogs({ appId }: { appId: string }) {
 
   const errorCount = logPatterns.filter(l => l.level === "ERROR").length
   const warnCount = logPatterns.filter(l => l.level === "WARN").length
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading logs...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load logs</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

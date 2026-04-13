@@ -1,7 +1,6 @@
 import { motion } from "framer-motion"
-import { CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Clock, User } from "lucide-react"
+import { CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Clock, User, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { INCIDENTS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppIncidents } from "@/lib/api/apps"
 import { mapAppIncident } from "@/lib/mappers"
@@ -15,17 +14,38 @@ const SEV_STYLE: Record<string, string> = {
 type IncEntry = { id: string; title: string; severity: string; opened: string; duration: string; status: string; assignee: string }
 
 export function TabIncidents({ appId }: { appId: string }) {
-  const { data: apiIncidents } = useApi(() => getAppIncidents(appId), [appId])
+  const { data: apiIncidents, loading, error } = useApi(() => getAppIncidents(appId), [appId])
 
-  const incidents: IncEntry[] = apiIncidents && apiIncidents.length > 0
+  const incidents: IncEntry[] = apiIncidents
     ? apiIncidents.map(i => {
         const m = mapAppIncident(i)
         return { id: m.id, title: m.title, severity: m.severity, opened: m.startedAt || "unknown", duration: m.duration || "—", status: m.status, assignee: m.assignee }
       })
-    : INCIDENTS
+    : []
 
   const resolved = incidents.filter(i => i.status === "resolved").length
   const open = incidents.filter(i => i.status !== "resolved").length
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading incidents...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load incidents</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -33,7 +53,7 @@ export function TabIncidents({ appId }: { appId: string }) {
         {[
           { label: "Total Incidents", value: String(incidents.length), color: "text-foreground" },
           { label: "Resolved", value: String(resolved), color: "text-emerald-500" },
-          { label: "MTTR", value: "11.5m", color: "text-foreground" },
+          { label: "MTTR", value: "—", color: "text-foreground" },
           { label: "Open", value: String(open), color: open > 0 ? "text-red-500" : "text-emerald-500" },
         ].map((s, i) => (
           <div key={i} className="premium-card px-4 py-3">
@@ -47,42 +67,49 @@ export function TabIncidents({ appId }: { appId: string }) {
         <div className="px-5 py-3 border-b border-border/60">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Incidents</div>
         </div>
-        <div className="divide-y divide-border/40">
-          {incidents.map((inc, i) => (
-            <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }}
-              className="flex items-start gap-4 px-5 py-4 hover:bg-muted/20 transition-colors">
-              {inc.status === "resolved"
-                ? <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              }
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-xs font-mono font-bold text-muted-foreground">{inc.id}</span>
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", SEV_STYLE[inc.severity] || SEV_STYLE["info"])}>
-                    {inc.severity}
-                  </span>
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                    inc.status === "resolved" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
-                  )}>
-                    {inc.status}
-                  </span>
+        {incidents.length === 0 ? (
+          <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs">No incidents found for this application.</span>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/40">
+            {incidents.map((inc, i) => (
+              <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.06 }}
+                className="flex items-start gap-4 px-5 py-4 hover:bg-muted/20 transition-colors">
+                {inc.status === "resolved"
+                  ? <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                }
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-xs font-mono font-bold text-muted-foreground">{inc.id}</span>
+                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", SEV_STYLE[inc.severity] || SEV_STYLE["info"])}>
+                      {inc.severity}
+                    </span>
+                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                      inc.status === "resolved" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                    )}>
+                      {inc.status}
+                    </span>
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">{inc.title}</div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="w-3 h-3" /> {inc.opened}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      Duration: {inc.duration}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <User className="w-3 h-3" /> {inc.assignee}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-sm font-semibold text-foreground">{inc.title}</div>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Clock className="w-3 h-3" /> {inc.opened}
-                  </span>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    Duration: {inc.duration}
-                  </span>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <User className="w-3 h-3" /> {inc.assignee}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

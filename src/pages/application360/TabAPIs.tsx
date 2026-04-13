@@ -1,9 +1,9 @@
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { ENDPOINTS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppEndpoints } from "@/lib/api/apps"
 import { mapAppEndpoint } from "@/lib/mappers"
+import { Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 
 const METHOD_COLOR: Record<string, string> = {
   GET: "bg-blue-500/10 text-blue-500",
@@ -15,9 +15,9 @@ const METHOD_COLOR: Record<string, string> = {
 type EndpointEntry = { path: string; method: string; latency: number; avail: number; errorPct: number; rpm: number; status: "healthy" | "warning" | "critical" }
 
 export function TabAPIs({ appId }: { appId: string }) {
-  const { data: apiEndpoints } = useApi(() => getAppEndpoints(appId), [appId])
+  const { data: apiEndpoints, loading, error } = useApi(() => getAppEndpoints(appId), [appId])
 
-  const endpoints: EndpointEntry[] = apiEndpoints && apiEndpoints.length > 0
+  const endpoints: EndpointEntry[] = apiEndpoints
     ? apiEndpoints.map(e => {
         const m = mapAppEndpoint(e)
         return {
@@ -30,12 +30,33 @@ export function TabAPIs({ appId }: { appId: string }) {
           status: (m.status === "healthy" ? "healthy" : m.status === "warning" ? "warning" : "critical") as EndpointEntry["status"],
         }
       })
-    : ENDPOINTS
+    : []
 
   const statusCounts = {
     healthy: endpoints.filter(e => e.status === "healthy").length,
     warning: endpoints.filter(e => e.status === "warning").length,
     critical: endpoints.filter(e => e.status === "critical").length,
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading API endpoints...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load API endpoints</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -62,6 +83,12 @@ export function TabAPIs({ appId }: { appId: string }) {
           <span>Error %</span>
           <span>RPM</span>
         </div>
+        {endpoints.length === 0 ? (
+          <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-xs">No API endpoints found for this application.</span>
+          </div>
+        ) : null}
         <div className="divide-y divide-border/40">
           {endpoints.map((ep, i) => (
             <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}

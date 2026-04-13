@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 import { useState, useMemo } from "react"
-import { Server, GitBranch, ExternalLink, Radio } from "lucide-react"
+import { Server, GitBranch, ExternalLink, Radio, CircleAlert as AlertCircle, Loader as Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/shared/PageHeader"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -12,7 +12,6 @@ import { useApi } from "@/hooks/useApi"
 import { listApps, type AppSummary } from "@/lib/api/apps"
 import { useHealthSocket } from "@/hooks/useHealthSocket"
 import { useAuth } from "@/context/AuthContext"
-import { APP_OPTIONS } from "./application360/data"
 import { TabOverview } from "./application360/TabOverview"
 import { TabSignals } from "./application360/TabSignals"
 import { TabTransactions } from "./application360/TabTransactions"
@@ -73,14 +72,14 @@ export function Application360() {
   const [selectedApp, setSelectedApp] = useState<string | null>(null)
   const { token } = useAuth()
 
-  const { data: apiApps } = useApi(listApps)
+  const { data: apiApps, loading: appsLoading, error: appsError } = useApi(listApps)
 
   const APP_OPTS: AppOption[] = useMemo(() => {
     if (apiApps && apiApps.length > 0) return apiApps.map(apiAppToOption)
-    return APP_OPTIONS
+    return []
   }, [apiApps])
 
-  const effectiveSelected = selectedApp ?? APP_OPTS[0]?.value ?? "payments-api"
+  const effectiveSelected = selectedApp ?? APP_OPTS[0]?.value ?? ""
   const baseApp = APP_OPTS.find(a => a.value === effectiveSelected) ?? APP_OPTS[0]
 
   const { connected, appHealthMap } = useHealthSocket({ token, enabled: !!token })
@@ -95,6 +94,60 @@ export function Application360() {
       status: liveData.status as AppOption["status"],
     }
   }, [baseApp, liveData])
+
+  if (appsLoading) {
+    return (
+      <div className="min-h-full">
+        <PageHeader
+          title="Application 360°"
+          description="Deep-dive health intelligence for a single application"
+        />
+        <div className="px-6 pb-6 flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span className="text-sm">Loading applications...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (appsError) {
+    return (
+      <div className="min-h-full">
+        <PageHeader
+          title="Application 360°"
+          description="Deep-dive health intelligence for a single application"
+        />
+        <div className="px-6 pb-6 flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3 text-center max-w-md">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Failed to load applications</p>
+              <p className="text-xs text-muted-foreground mt-1">{appsError}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!APP_OPTS.length) {
+    return (
+      <div className="min-h-full">
+        <PageHeader
+          title="Application 360°"
+          description="Deep-dive health intelligence for a single application"
+        />
+        <div className="px-6 pb-6 flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Server className="w-8 h-8" />
+            <p className="text-sm">No applications found. Onboard an application to get started.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-full">

@@ -1,7 +1,6 @@
 import { motion } from "framer-motion"
-import { Zap, Activity, Database, Monitor, Wifi, Shield, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Link, Cpu, ChartBar as BarChart3 } from "lucide-react"
+import { Zap, Activity, Database, Monitor, Wifi, Shield, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Link, Cpu, ChartBar as BarChart3, Loader as Loader2, CircleAlert as AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SIGNALS } from "./data"
 import { useApi } from "@/hooks/useApi"
 import { getAppSignals, type AppSignal } from "@/lib/api/apps"
 
@@ -43,13 +42,41 @@ function apiSignalToEntry(s: AppSignal): SignalEntry {
 }
 
 export function TabSignals({ appId }: { appId: string }) {
-  const { data: apiSignals } = useApi(() => getAppSignals(appId), [appId])
+  const { data: apiSignals, loading, error } = useApi(() => getAppSignals(appId), [appId])
 
-  const signals: SignalEntry[] = apiSignals && apiSignals.length > 0
-    ? apiSignals.map(apiSignalToEntry)
-    : SIGNALS
+  const signals: SignalEntry[] = apiSignals ? apiSignals.map(apiSignalToEntry) : []
 
   const sources = [...new Set(signals.map(s => s.source))]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading signals...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Failed to load signals</p>
+          <p className="text-xs text-muted-foreground mt-1">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (signals.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
+        <AlertCircle className="w-4 h-4" />
+        <span className="text-sm">No signals available for this application.</span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
